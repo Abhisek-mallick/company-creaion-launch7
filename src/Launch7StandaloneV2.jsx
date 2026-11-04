@@ -231,40 +231,50 @@ const domainMissing = (ventureId, key, tasks = []) => {
   const records = storedRecords(ventureId);
   if (
     key === "launch" &&
-    (records.dependencies || []).some((item) =>
-      String(item.status || "")
-        .toLowerCase()
-        .includes("blocked"),
+    (records.dependencies || []).some(
+      (item) =>
+        !["resolved", "cleared", "complete", "completed", "unblocked"].includes(
+          String(item.status || "")
+            .trim()
+            .toLowerCase(),
+        ),
     )
   )
-    missing.push("blocked launch dependencies");
+    missing.push("unresolved launch dependencies");
   if (
     key === "launch" &&
-    (records.decisions || []).some((item) =>
-      String(item.outcome || item.status || "")
-        .toLowerCase()
-        .includes("rejected"),
+    (records.decisions || []).some(
+      (item) =>
+        String(item.outcome || item.status || "")
+          .trim()
+          .toLowerCase() !== "approved",
     )
   )
-    missing.push("rejected launch decision");
+    missing.push("launch decision not approved");
   if (
     key === "people" &&
-    (records.peopleEvidence || []).some((item) =>
-      String(item.status || "")
-        .toLowerCase()
-        .includes("rejected"),
+    (records.peopleEvidence || []).some(
+      (item) =>
+        !["accepted", "approved", "complete", "completed"].includes(
+          String(item.status || "")
+            .trim()
+            .toLowerCase(),
+        ),
     )
   )
-    missing.push("rejected people evidence");
+    missing.push("people evidence not accepted");
   if (
     key === "finance" &&
-    (records.ownershipDocuments || []).some((item) =>
-      String(item.status || "")
-        .toLowerCase()
-        .includes("rejected"),
+    (records.ownershipDocuments || []).some(
+      (item) =>
+        !["accepted", "approved", "complete", "completed"].includes(
+          String(item.status || "")
+            .trim()
+            .toLowerCase(),
+        ),
     )
   )
-    missing.push("rejected ownership document");
+    missing.push("ownership document not accepted");
   return missing;
 };
 export default function Launch7StandaloneV2() {
@@ -1295,6 +1305,17 @@ function OperationsControls({ k, ventureId, data, update }) {
       onChange={(e) => setDraft(type, field, e.target.value)}
     />
   );
+  const recordSelect = (type, field, options) => (
+    <select
+      aria-label={`${type} ${field}`}
+      value={drafts[type]?.[field] || options[0]}
+      onChange={(e) => setDraft(type, field, e.target.value)}
+    >
+      {options.map((option) => (
+        <option key={option}>{option}</option>
+      ))}
+    </select>
+  );
   const recordList = (type, fields) => (
     <div className="record-list">
       {(records[type] || []).map((item) => (
@@ -1399,7 +1420,11 @@ function OperationsControls({ k, ventureId, data, update }) {
           <div className="record-form">
             {recordInput("ownershipDocuments", "name", "Document name")}
             {recordInput("ownershipDocuments", "type", "Document type")}
-            {recordInput("ownershipDocuments", "status", "Status")}
+            {recordSelect("ownershipDocuments", "status", [
+              "Pending review",
+              "Accepted",
+              "Rejected",
+            ])}
             {recordInput("ownershipDocuments", "reference", "Reference")}
             <button
               className="secondary"
@@ -1568,7 +1593,11 @@ function OperationsControls({ k, ventureId, data, update }) {
           <div className="record-form">
             {recordInput("decisions", "decision", "Decision")}
             {recordInput("decisions", "owner", "Decision maker")}
-            {recordInput("decisions", "outcome", "Outcome")}
+            {recordSelect("decisions", "outcome", [
+              "Pending review",
+              "Approved",
+              "No-go",
+            ])}
             {recordInput("decisions", "date", "Date", "date")}
             <button
               className="secondary"
@@ -1590,7 +1619,11 @@ function OperationsControls({ k, ventureId, data, update }) {
             {recordInput("dependencies", "dependency", "Dependency or blocker")}
             {recordInput("dependencies", "owner", "Owner")}
             {recordInput("dependencies", "dueDate", "Due date", "date")}
-            {recordInput("dependencies", "status", "Status")}
+            {recordSelect("dependencies", "status", [
+              "Open",
+              "Blocked",
+              "Resolved",
+            ])}
             <button
               className="secondary"
               onClick={() =>
@@ -1676,7 +1709,11 @@ function OperationsControls({ k, ventureId, data, update }) {
           {recordInput("peopleEvidence", "person", "Person")}
           {recordInput("peopleEvidence", "evidence", "Evidence reference")}
           {recordInput("peopleEvidence", "reviewer", "Reviewer")}
-          {recordInput("peopleEvidence", "status", "Review status")}
+          {recordSelect("peopleEvidence", "status", [
+            "Pending review",
+            "Accepted",
+            "Rejected",
+          ])}
           <button
             className="secondary"
             onClick={() => saveRecord("peopleEvidence", ["person", "evidence"])}

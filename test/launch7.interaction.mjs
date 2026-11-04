@@ -357,6 +357,12 @@ await act(async () =>
     .find((node) => node.props.placeholder === "Document type")
     .props.onChange({ target: { value: "Ownership" } }),
 );
+await act(async () =>
+  renderer.root
+    .findAllByType("select")
+    .find((node) => node.props["aria-label"] === "ownershipDocuments status")
+    .props.onChange({ target: { value: "Accepted" } }),
+);
 await act(async () => button(renderer, "Add document").props.onClick());
 assert.equal(
   JSON.parse(store.get("launch7-records-1")).ownershipDocuments[0].name,
@@ -504,6 +510,12 @@ await act(async () =>
 );
 await act(async () =>
   renderer.root
+    .findAllByType("select")
+    .find((node) => node.props["aria-label"] === "peopleEvidence status")
+    .props.onChange({ target: { value: "Accepted" } }),
+);
+await act(async () =>
+  renderer.root
     .findAllByType("button")
     .find((node) => text(node) === "Add evidence")
     .props.onClick(),
@@ -561,6 +573,12 @@ await act(async () =>
     .find((node) => node.props.placeholder === "Decision maker")
     .props.onChange({ target: { value: "Founder" } }),
 );
+await act(async () =>
+  renderer.root
+    .findAllByType("select")
+    .find((node) => node.props["aria-label"] === "decisions outcome")
+    .props.onChange({ target: { value: "Approved" } }),
+);
 await act(async () => button(renderer, "Add decision").props.onClick());
 assert.equal(
   JSON.parse(store.get("launch7-records-1")).decisions[0].decision,
@@ -578,6 +596,12 @@ await act(async () =>
     .findAllByType("input")
     .find((node) => node.props.placeholder === "Owner")
     .props.onChange({ target: { value: "Product" } }),
+);
+await act(async () =>
+  renderer.root
+    .findAllByType("select")
+    .find((node) => node.props["aria-label"] === "dependencies status")
+    .props.onChange({ target: { value: "Resolved" } }),
 );
 await act(async () => button(renderer, "Add dependency").props.onClick());
 assert.equal(
@@ -715,14 +739,14 @@ await act(async () =>
 );
 await act(async () =>
   renderer.root
-    .findAllByType("input")
-    .find((node) => node.props.placeholder === "Status")
+    .findAllByType("select")
+    .find((node) => node.props["aria-label"] === "dependencies status")
     .props.onChange({ target: { value: "Blocked" } }),
 );
 await act(async () => button(renderer, "Update dependency").props.onClick());
 await act(async () => button(renderer, "Launch review").props.onClick());
 assert.ok(
-  text(renderer.root).includes("blocked launch dependencies"),
+  text(renderer.root).includes("unresolved launch dependencies"),
   "a blocked Launch Room dependency should block readiness with a reason",
 );
 await act(async () => button(renderer, "People & operations").props.onClick());
@@ -734,21 +758,79 @@ await act(async () =>
 );
 await act(async () =>
   renderer.root
-    .findAllByType("input")
-    .find((node) => node.props.placeholder === "Review status")
+    .findAllByType("select")
+    .find((node) => node.props["aria-label"] === "peopleEvidence status")
     .props.onChange({ target: { value: "Rejected" } }),
 );
 await act(async () => button(renderer, "Update evidence").props.onClick());
 await act(async () => button(renderer, "Launch review").props.onClick());
 assert.ok(
-  text(renderer.root).includes("rejected people evidence"),
+  text(renderer.root).includes("people evidence not accepted"),
   "rejected People evidence should block readiness with a reason",
 );
 const clearedRegisterState = JSON.parse(store.get("launch7-records-1"));
-clearedRegisterState.dependencies[0].status = "";
-clearedRegisterState.peopleEvidence[0].status = "";
+clearedRegisterState.dependencies[0].status = "Resolved";
+clearedRegisterState.peopleEvidence[0].status = "Accepted";
 store.set("launch7-records-1", JSON.stringify(clearedRegisterState));
 store.delete("launch7-approval-invalidated-1");
+global.window.location.pathname = "/";
+await act(async () => {
+  renderer = create(React.createElement(App));
+});
+await act(async () => button(renderer, "Open launch plan").props.onClick());
+await act(async () => button(renderer, "Review launch").props.onClick());
+assert.ok(
+  text(renderer.root).includes("Ready to submit for approval"),
+  "explicitly resolved register states should allow readiness",
+);
+clearedRegisterState.dependencies[0].status = "Unblocked";
+store.set("launch7-records-1", JSON.stringify(clearedRegisterState));
+await act(async () => {
+  renderer = create(React.createElement(App));
+});
+await act(async () => button(renderer, "Open launch plan").props.onClick());
+await act(async () => button(renderer, "Review launch").props.onClick());
+assert.ok(
+  text(renderer.root).includes("Ready to submit for approval"),
+  "legacy Unblocked dependency should be treated as resolved",
+);
+clearedRegisterState.dependencies[0].status = "Open";
+store.set("launch7-records-1", JSON.stringify(clearedRegisterState));
+await act(async () => {
+  renderer = create(React.createElement(App));
+});
+await act(async () => button(renderer, "Open launch plan").props.onClick());
+await act(async () => button(renderer, "Review launch").props.onClick());
+assert.ok(
+  text(renderer.root).includes("unresolved launch dependencies"),
+  "Open dependency status should block readiness",
+);
+clearedRegisterState.dependencies[0].status = "Resolved";
+clearedRegisterState.decisions[0].outcome = "No-go";
+store.set("launch7-records-1", JSON.stringify(clearedRegisterState));
+await act(async () => {
+  renderer = create(React.createElement(App));
+});
+await act(async () => button(renderer, "Open launch plan").props.onClick());
+await act(async () => button(renderer, "Review launch").props.onClick());
+assert.ok(
+  text(renderer.root).includes("launch decision not approved"),
+  "No-go decision should block readiness",
+);
+clearedRegisterState.decisions[0].outcome = "Approved";
+clearedRegisterState.dependencies[0].status = "Mystery legacy state";
+store.set("launch7-records-1", JSON.stringify(clearedRegisterState));
+await act(async () => {
+  renderer = create(React.createElement(App));
+});
+await act(async () => button(renderer, "Open launch plan").props.onClick());
+await act(async () => button(renderer, "Review launch").props.onClick());
+assert.ok(
+  text(renderer.root).includes("unresolved launch dependencies"),
+  "unknown legacy dependency status should fail closed",
+);
+clearedRegisterState.dependencies[0].status = "Resolved";
+store.set("launch7-records-1", JSON.stringify(clearedRegisterState));
 store.set(
   "launch7-draft-1-finance-0",
   JSON.stringify({
