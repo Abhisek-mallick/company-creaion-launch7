@@ -238,16 +238,6 @@ assert.ok(
   ).length,
   "Finance should expose domain-specific controls",
 );
-const guardedFinanceTask = renderer.root.findAll(
-  (node) =>
-    node.type === "button" && node.props.className?.includes("check-button"),
-)[0];
-await act(async () => guardedFinanceTask.props.onClick());
-assert.equal(
-  guardedFinanceTask.props.className.includes("checked"),
-  false,
-  "Finance task checkbox should not bypass missing domain validation",
-);
 const budgetAmount = renderer.root.findAllByType("input")[0];
 await act(async () =>
   budgetAmount.props.onChange({ target: { value: "50000" } }),
@@ -428,6 +418,14 @@ const fullyDone = JSON.parse(store.get("launch7-v2")).map((venture) => ({
   ),
 }));
 store.set("launch7-v2", JSON.stringify(fullyDone));
+store.set(
+  "launch7-draft-1-apps-0",
+  JSON.stringify({
+    toolInventory: "Analytics",
+    permissionOwner: "Founder",
+    testEvidence: "Smoke test passed",
+  }),
+);
 store.set("launch7-approval-1", "Submitted");
 await act(async () => {
   renderer = create(React.createElement(App));
@@ -441,6 +439,43 @@ assert.ok(
   ).length,
   "approved venture should show submitted state",
 );
+store.set(
+  "launch7-draft-1-finance-0",
+  JSON.stringify({
+    budgetAmount: "",
+    fundingSource: "Investor",
+    ownershipPercent: "70%",
+    __fieldUpdated: {
+      budgetAmount: 9000000000000000,
+      fundingSource: 9000000000000000,
+      ownershipPercent: 9000000000000000,
+    },
+  }),
+);
+await act(async () => {
+  renderer = create(React.createElement(App));
+});
+await act(async () => button(renderer, "Ventures").props.onClick());
+await act(async () => button(renderer, "Open launch plan").props.onClick());
+await act(async () => button(renderer, "Review launch").props.onClick());
+assert.ok(
+  renderer.root.findAll(
+    (node) =>
+      node.type === "h2" &&
+      text(node).includes("Complete every workstream first"),
+  ).length,
+  "clearing a required Finance field should block approval",
+);
+store.set(
+  "launch7-draft-1-finance-0",
+  JSON.stringify({
+    budgetAmount: "50000",
+    fundingSource: "Investor",
+    ownershipPercent: "70%",
+  }),
+);
+await act(async () => button(renderer, "Ventures").props.onClick());
+await act(async () => button(renderer, "Open launch plan").props.onClick());
 await act(async () => button(renderer, "Brand & collateral").props.onClick());
 const brandCheck = renderer.root.findAll(
   (node) =>

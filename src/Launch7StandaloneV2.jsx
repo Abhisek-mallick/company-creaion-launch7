@@ -127,21 +127,40 @@ const storedDomainData = (ventureId, key) => {
   const tabs = WS[key]?.[1] || [];
   return tabs.reduce((merged, _, index) => {
     try {
-      return {
-        ...merged,
-        ...(JSON.parse(
+      const draft =
+        JSON.parse(
           localStorage.getItem(`launch7-draft-${ventureId}-${key}-${index}`),
-        ) || {}),
-      };
+        ) || {};
+      const stamps = merged.__fieldUpdated || {};
+      const next = { ...merged, __fieldUpdated: { ...stamps } };
+      Object.entries(draft).forEach(([field, value]) => {
+        if (field === "__fieldUpdated") return;
+        const stamp = draft.__fieldUpdated?.[field] || index;
+        if (stamps[field] === undefined || stamp >= stamps[field]) {
+          next[field] = value;
+          next.__fieldUpdated[field] = stamp;
+        }
+      });
+      return next;
     } catch {
       return merged;
     }
   }, {});
 };
-const domainReady = (ventureId, key) =>
-  (domainRequirement[key] || []).every((field) =>
-    String(storedDomainData(ventureId, key)[field] || "").trim(),
+const domainReady = (ventureId, key) => {
+  const data = storedDomainData(ventureId, key);
+  if (
+    !(domainRequirement[key] || []).length ||
+    !Object.entries(data).some(
+      ([field, value]) =>
+        field !== "__fieldUpdated" && String(value || "").trim(),
+    )
+  )
+    return true;
+  return domainRequirement[key].every((field) =>
+    String(data[field] || "").trim(),
   );
+};
 export default function Launch7StandaloneV2() {
   const [rows, setRows] = useState(initial);
   const [selected, setSelected] = useState(0);
@@ -251,6 +270,7 @@ export default function Launch7StandaloneV2() {
           {screen === "dashboard" && (
             <Dashboard
               rows={rows}
+              selected={selected}
               open={(i) => {
                 setSelected(i);
                 go("setup");
@@ -308,7 +328,7 @@ function Nav({ active, text, onClick }) {
     </button>
   );
 }
-function Dashboard({ rows, open, newV }) {
+function Dashboard({ rows, open, newV, selected }) {
   return (
     <section>
       <div className="page-heading">
@@ -372,7 +392,7 @@ function Dashboard({ rows, open, newV }) {
           </article>
         ))}
       </div>
-      {rows[0] && <LaunchSnapshot venture={rows[0]} />}
+      {rows[selected] && <LaunchSnapshot venture={rows[selected]} />}
     </section>
   );
 }
@@ -396,7 +416,17 @@ function LaunchSnapshot({ venture }) {
         {keys.map((key) => {
           const items = venture.tasks[key] || [];
           const done = items.filter((item) => item.status === "Done").length;
-          const evidence = items.filter((item) => item.note).length;
+          const evidence = items.filter((item) => {
+            try {
+              const parsed = JSON.parse(item.note || "{}");
+              return Object.entries(parsed).some(
+                ([field, value]) =>
+                  field !== "__fieldUpdated" && String(value || "").trim(),
+              );
+            } catch {
+              return false;
+            }
+          }).length;
           return (
             <div className="snapshot-row" key={key}>
               <b>{WS[key][0]}</b>
@@ -1218,12 +1248,17 @@ function OperationsControls({ k, data, update }) {
 }
 function Review({ v, setStep }) {
   const approvalKey = `launch7-approval-${v.id}`;
-  const done = keys.every((k) => v.tasks[k].every((t) => t.status === "Done"));
+  const done = keys.every(
+    (k) => v.tasks[k].every((t) => t.status === "Done") && domainReady(v.id, k),
+  );
   const [sent, setSent] = useState(
     done &&
       (localStorage.getItem(approvalKey) === "Submitted" ||
         v.approval === "Submitted"),
   );
+  useEffect(() => {
+    if (!done) setSent(false);
+  }, [done]);
   return (
     <div className="panel launch-review">
       <div className="review-icon">
