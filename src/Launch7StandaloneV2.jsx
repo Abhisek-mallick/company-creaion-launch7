@@ -173,10 +173,10 @@ const storedDomainData = (ventureId, key) => {
     }
   }, {});
 };
-const domainReady = (ventureId, key) => {
-  return domainMissing(ventureId, key).length === 0;
+const domainReady = (ventureId, key, tasks = []) => {
+  return domainMissing(ventureId, key, tasks).length === 0;
 };
-const domainMissing = (ventureId, key) => {
+const domainMissing = (ventureId, key, tasks = []) => {
   const data = storedDomainData(ventureId, key);
   if (key === "brand") {
     if (data.method === "manual")
@@ -191,9 +191,21 @@ const domainMissing = (ventureId, key) => {
     }
     return data.aiStatus && data.aiOutput ? [] : ["AI demo output"];
   }
-  return (domainRequirement[key] || []).filter(
+  const missing = (domainRequirement[key] || []).filter(
     (field) => !String(data[field] || "").trim(),
   );
+  if (key === "product" && tasks.length) {
+    const incomplete = tasks.filter(
+      (task) =>
+        !String(task.assigneeName || "").trim() ||
+        task.evidenceReview !== "Founder reviewed" ||
+        !(task.checklist || productChecklist).every(
+          (_, index) => task.checklistState?.[index],
+        ),
+    ).length;
+    if (incomplete) missing.push(`${incomplete} product task reviews`);
+  }
+  return missing;
 };
 export default function Launch7StandaloneV2() {
   const [rows, setRows] = useState(initial);
@@ -224,7 +236,7 @@ export default function Launch7StandaloneV2() {
     setTimeout(() => setNotice(""), 1800);
   };
   const task = (key, id, patch) => {
-    if (patch.status === "Done" && !domainReady(v.id, key)) {
+    if (patch.status === "Done" && !domainReady(v.id, key, v.tasks[key])) {
       setNotice(
         "Complete the required domain fields before checking this task.",
       );
@@ -238,7 +250,28 @@ export default function Launch7StandaloneV2() {
             tasks: {
               ...x.tasks,
               [key]: x.tasks[key].map((t) =>
-                t.id === id ? { ...t, ...patch } : t,
+                t.id === id
+                  ? {
+                      ...t,
+                      ...patch,
+                      ...(patch.assigneeName !== undefined
+                        ? {
+                            note: (() => {
+                              try {
+                                return JSON.stringify({
+                                  ...JSON.parse(t.note || "{}"),
+                                  assigneeName: patch.assigneeName,
+                                });
+                              } catch {
+                                return JSON.stringify({
+                                  assigneeName: patch.assigneeName,
+                                });
+                              }
+                            })(),
+                          }
+                        : {}),
+                    }
+                  : t,
               ),
             },
           }
@@ -587,7 +620,7 @@ function Setup({ v, step, setStep, onTask, review }) {
               done={
                 k !== "review" &&
                 v.tasks[k].every((t) => t.status === "Done") &&
-                domainReady(v.id, k)
+                domainReady(v.id, k, v.tasks[k])
               }
             />
           ))}
@@ -703,23 +736,36 @@ function Wizard({ v, k, tasks, onTask }) {
   const [domainError, setDomainError] = useState("");
   useEffect(() => setData(readStageDraft(tab)), [draftKey]);
   const update = (key, val) => {
+    const resetGenerated =
+      k === "brand" && key === "aiBrief" ? { aiStatus: "", aiOutput: "" } : {};
     const next = {
       ...data,
+      ...resetGenerated,
       [key]: val,
-      __fieldUpdated: { ...(data.__fieldUpdated || {}), [key]: Date.now() },
+      __fieldUpdated: {
+        ...(data.__fieldUpdated || {}),
+        ...Object.fromEntries(
+          Object.keys(resetGenerated).map((field) => [field, Date.now()]),
+        ),
+        [key]: Date.now(),
+      },
     };
     setData(next);
     localStorage.setItem(draftKey, JSON.stringify(next));
     localStorage.removeItem(`launch7-approval-${v.id}`);
   };
   const updateMany = (patch) => {
+    const nextPatch =
+      k === "brand" && patch.deliverableFile
+        ? { ...patch, founderReviewed: false }
+        : patch;
     const next = {
       ...data,
-      ...patch,
+      ...nextPatch,
       __fieldUpdated: {
         ...(data.__fieldUpdated || {}),
         ...Object.fromEntries(
-          Object.keys(patch).map((key) => [key, Date.now()]),
+          Object.keys(nextPatch).map((key) => [key, Date.now()]),
         ),
       },
     };
@@ -751,6 +797,12 @@ function Wizard({ v, k, tasks, onTask }) {
       );
       return;
     }
+    if (tab === tabs.length - 1 && !domainReady(v.id, k, tasks)) {
+      setDomainError(
+        `Complete the required ${WS[k][0]} task evidence before saving this review.`,
+      );
+      return;
+    }
     setDomainError("");
     const t = tasks[Math.min(tab, tasks.length - 1)];
     const note = JSON.stringify(data);
@@ -758,13 +810,19 @@ function Wizard({ v, k, tasks, onTask }) {
       const stored = JSON.parse(localStorage.getItem("launch7-v2") || "[]");
       const source = stored.length ? stored : [v];
       const stageNotes = (row) =>
-        row.tasks[k].map((_, index) =>
-          JSON.stringify(
-            index >= tabs.length - 1
+        row.tasks[k].map((task, index) => {
+          const stageIndex = Math.min(index, tabs.length - 1);
+          const draft =
+            stageIndex === tabs.length - 1
               ? data
-              : readDraft(`launch7-draft-${v.id}-${k}-${index}`),
-          ),
-        );
+              : readDraft(`launch7-draft-${v.id}-${k}-${stageIndex}`);
+          const noteData = { ...draft };
+          if (task.assigneeName) noteData.assigneeName = task.assigneeName;
+          else if (stageIndex === tabs.length - 1) delete noteData.assigneeName;
+          if (task.dueDate) noteData.dueDate = task.dueDate;
+          else if (stageIndex === tabs.length - 1) delete noteData.dueDate;
+          return JSON.stringify(noteData);
+        });
       const savedRows = source.map((row) =>
         row.id === v.id
           ? {
@@ -808,6 +866,7 @@ function Wizard({ v, k, tasks, onTask }) {
       </div>
       <DomainControls
         k={k}
+        ventureId={v.id}
         data={data}
         update={update}
         updateMany={updateMany}
@@ -907,11 +966,18 @@ function Wizard({ v, k, tasks, onTask }) {
     </div>
   );
 }
-function DomainControls({ k, data, update, updateMany }) {
+function DomainControls({ k, ventureId, data, update, updateMany }) {
   if (
     ["finance", "legal", "people", "apps", "partners", "launch"].includes(k)
   ) {
-    return <OperationsControls k={k} data={data} update={update} />;
+    return (
+      <OperationsControls
+        k={k}
+        ventureId={ventureId}
+        data={data}
+        update={update}
+      />
+    );
   }
   if (k !== "brand" && k !== "product") return null;
   const brand = k === "brand";
@@ -1115,7 +1181,86 @@ function DomainControls({ k, data, update, updateMany }) {
     </section>
   );
 }
-function OperationsControls({ k, data, update }) {
+function OperationsControls({ k, ventureId, data, update }) {
+  const recordStorageKey = `launch7-records-${ventureId}`;
+  const [records, setRecords] = useState(() => {
+    try {
+      return JSON.parse(localStorage.getItem(recordStorageKey)) || {};
+    } catch {
+      return {};
+    }
+  });
+  const [drafts, setDrafts] = useState({});
+  const [editing, setEditing] = useState({});
+  const saveRecords = (next) => {
+    setRecords(next);
+    localStorage.setItem(recordStorageKey, JSON.stringify(next));
+  };
+  const setDraft = (type, field, value) =>
+    setDrafts((current) => ({
+      ...current,
+      [type]: { ...(current[type] || {}), [field]: value },
+    }));
+  const saveRecord = (type, required) => {
+    const draft = drafts[type] || {};
+    if (required.some((field) => !String(draft[field] || "").trim())) return;
+    const list = records[type] || [];
+    const id = editing[type] || `${type}-${Date.now()}`;
+    const next = {
+      ...records,
+      [type]: [...list.filter((item) => item.id !== id), { ...draft, id }],
+    };
+    saveRecords(next);
+    setDrafts((current) => ({ ...current, [type]: {} }));
+    setEditing((current) => ({ ...current, [type]: "" }));
+  };
+  const editRecord = (type, item) => {
+    setDrafts((current) => ({ ...current, [type]: { ...item } }));
+    setEditing((current) => ({ ...current, [type]: item.id }));
+  };
+  const removeRecord = (type, id) =>
+    saveRecords({
+      ...records,
+      [type]: (records[type] || []).filter((item) => item.id !== id),
+    });
+  const recordInput = (type, field, placeholder, inputType = "text") => (
+    <input
+      type={inputType}
+      placeholder={placeholder}
+      value={drafts[type]?.[field] || ""}
+      onChange={(e) => setDraft(type, field, e.target.value)}
+    />
+  );
+  const recordList = (type, fields) => (
+    <div className="record-list">
+      {(records[type] || []).map((item) => (
+        <div className="record-row" key={item.id}>
+          <span>
+            <b>{item[fields[0]]}</b>
+            <small>
+              {fields
+                .slice(1)
+                .map((field) => item[field])
+                .filter(Boolean)
+                .join(" · ")}
+            </small>
+          </span>
+          <button
+            className="text-button"
+            onClick={() => editRecord(type, item)}
+          >
+            Edit
+          </button>
+          <button
+            className="text-button danger"
+            onClick={() => removeRecord(type, item.id)}
+          >
+            Remove
+          </button>
+        </div>
+      ))}
+    </div>
+  );
   const field = (label, key, placeholder, type = "text") => (
     <Field label={label}>
       <input
@@ -1153,6 +1298,57 @@ function OperationsControls({ k, data, update }) {
             placeholder="Funding assumptions or evidence reference"
           />
         </label>
+        <div className="record-section">
+          <div className="record-heading">
+            <div>
+              <h4>Expense register</h4>
+              <small>
+                Local planning records; no payment or accounting sync.
+              </small>
+            </div>
+          </div>
+          <div className="record-form">
+            {recordInput("expenses", "category", "Expense category")}
+            {recordInput("expenses", "amount", "Amount")}
+            {recordInput("expenses", "date", "Date", "date")}
+            {recordInput("expenses", "note", "Evidence or note")}
+            <button
+              className="secondary"
+              onClick={() => saveRecord("expenses", ["category", "amount"])}
+            >
+              {editing.expenses ? "Update expense" : "Add expense"}
+            </button>
+          </div>
+          {recordList("expenses", ["category", "amount", "date", "note"])}
+        </div>
+        <div className="record-section">
+          <div className="record-heading">
+            <div>
+              <h4>Ownership documents</h4>
+              <small>
+                Reference metadata only; files remain local to this demo.
+              </small>
+            </div>
+          </div>
+          <div className="record-form">
+            {recordInput("ownershipDocuments", "name", "Document name")}
+            {recordInput("ownershipDocuments", "type", "Document type")}
+            {recordInput("ownershipDocuments", "status", "Status")}
+            {recordInput("ownershipDocuments", "reference", "Reference")}
+            <button
+              className="secondary"
+              onClick={() => saveRecord("ownershipDocuments", ["name", "type"])}
+            >
+              {editing.ownershipDocuments ? "Update document" : "Add document"}
+            </button>
+          </div>
+          {recordList("ownershipDocuments", [
+            "name",
+            "type",
+            "status",
+            "reference",
+          ])}
+        </div>
       </section>
     );
   }
@@ -1294,6 +1490,57 @@ function OperationsControls({ k, data, update }) {
             placeholder="Rollback, communication and support plan"
           />
         </label>
+        <div className="record-section">
+          <div className="record-heading">
+            <div>
+              <h4>Decision log</h4>
+              <small>
+                Capture launch-room decisions and approver context locally.
+              </small>
+            </div>
+          </div>
+          <div className="record-form">
+            {recordInput("decisions", "decision", "Decision")}
+            {recordInput("decisions", "owner", "Decision maker")}
+            {recordInput("decisions", "outcome", "Outcome")}
+            {recordInput("decisions", "date", "Date", "date")}
+            <button
+              className="secondary"
+              onClick={() => saveRecord("decisions", ["decision", "owner"])}
+            >
+              {editing.decisions ? "Update decision" : "Add decision"}
+            </button>
+          </div>
+          {recordList("decisions", ["decision", "owner", "outcome", "date"])}
+        </div>
+        <div className="record-section">
+          <div className="record-heading">
+            <div>
+              <h4>Dependencies and blockers</h4>
+              <small>Track the checks that must clear before go-live.</small>
+            </div>
+          </div>
+          <div className="record-form">
+            {recordInput("dependencies", "dependency", "Dependency or blocker")}
+            {recordInput("dependencies", "owner", "Owner")}
+            {recordInput("dependencies", "dueDate", "Due date", "date")}
+            {recordInput("dependencies", "status", "Status")}
+            <button
+              className="secondary"
+              onClick={() =>
+                saveRecord("dependencies", ["dependency", "owner"])
+              }
+            >
+              {editing.dependencies ? "Update dependency" : "Add dependency"}
+            </button>
+          </div>
+          {recordList("dependencies", [
+            "dependency",
+            "owner",
+            "dueDate",
+            "status",
+          ])}
+        </div>
       </section>
     );
   }
@@ -1331,13 +1578,62 @@ function OperationsControls({ k, data, update }) {
           <option>Monthly</option>
         </select>
       </label>
+      <div className="record-section">
+        <div className="record-heading">
+          <div>
+            <h4>Role register</h4>
+            <small>Track people decisions locally per venture.</small>
+          </div>
+        </div>
+        <div className="record-form">
+          {recordInput("roles", "role", "Role title")}
+          {recordInput("roles", "person", "Person")}
+          {recordInput("roles", "status", "Status")}
+          {recordInput("roles", "owner", "Manager or owner")}
+          <button
+            className="secondary"
+            onClick={() => saveRecord("roles", ["role", "person"])}
+          >
+            {editing.roles ? "Update role" : "Add role"}
+          </button>
+        </div>
+        {recordList("roles", ["role", "person", "status", "owner"])}
+      </div>
+      <div className="record-section">
+        <div className="record-heading">
+          <div>
+            <h4>Evidence review register</h4>
+            <small>Record access, onboarding and approval references.</small>
+          </div>
+        </div>
+        <div className="record-form">
+          {recordInput("peopleEvidence", "person", "Person")}
+          {recordInput("peopleEvidence", "evidence", "Evidence reference")}
+          {recordInput("peopleEvidence", "reviewer", "Reviewer")}
+          {recordInput("peopleEvidence", "status", "Review status")}
+          <button
+            className="secondary"
+            onClick={() => saveRecord("peopleEvidence", ["person", "evidence"])}
+          >
+            {editing.peopleEvidence ? "Update evidence" : "Add evidence"}
+          </button>
+        </div>
+        {recordList("peopleEvidence", [
+          "person",
+          "evidence",
+          "reviewer",
+          "status",
+        ])}
+      </div>
     </section>
   );
 }
 function Review({ v, setStep }) {
   const approvalKey = `launch7-approval-${v.id}`;
   const done = keys.every(
-    (k) => v.tasks[k].every((t) => t.status === "Done") && domainReady(v.id, k),
+    (k) =>
+      v.tasks[k].every((t) => t.status === "Done") &&
+      domainReady(v.id, k, v.tasks[k]),
   );
   const [sent, setSent] = useState(
     done &&
@@ -1366,13 +1662,13 @@ function Review({ v, setStep }) {
             <span
               className={
                 v.tasks[k].every((t) => t.status === "Done") &&
-                domainReady(v.id, k)
+                domainReady(v.id, k, v.tasks[k])
                   ? "ready"
                   : ""
               }
             >
               {v.tasks[k].every((t) => t.status === "Done") &&
-              domainReady(v.id, k) ? (
+              domainReady(v.id, k, v.tasks[k]) ? (
                 <Check size={14} />
               ) : (
                 <span />
@@ -1381,10 +1677,10 @@ function Review({ v, setStep }) {
             {WS[k][0]}
             <small>
               {v.tasks[k].every((t) => t.status === "Done") &&
-              domainReady(v.id, k)
+              domainReady(v.id, k, v.tasks[k])
                 ? "Ready"
-                : domainMissing(v.id, k).length
-                  ? `Missing: ${domainMissing(v.id, k).join(", ")}`
+                : domainMissing(v.id, k, v.tasks[k]).length
+                  ? `Missing: ${domainMissing(v.id, k, v.tasks[k]).join(", ")}`
                   : "Needs work"}
             </small>
           </button>
@@ -1503,8 +1799,8 @@ function Tasks({ v, onTask }) {
                     const meta = JSON.parse(t.note || "{}");
                     return (
                       <small>
-                        {meta.assigneeName
-                          ? `Assigned to ${meta.assigneeName}`
+                        {t.assigneeName || meta.assigneeName
+                          ? `Assigned to ${t.assigneeName || meta.assigneeName}`
                           : meta.method === "ai" && meta.aiStatus
                             ? meta.aiStatus
                             : meta.file

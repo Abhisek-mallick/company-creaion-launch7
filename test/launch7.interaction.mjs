@@ -178,6 +178,41 @@ assert.equal(
   "Validated MVP scope",
   "product drafts should restore after navigation",
 );
+await act(async () => button(renderer, "Assigned tasks").props.onClick());
+for (const [index, ownerInput] of renderer.root
+  .findAllByType("input")
+  .filter((node) => node.props["aria-label"]?.endsWith(" owner"))
+  .entries()) {
+  await act(async () =>
+    ownerInput.props.onChange({
+      target: {
+        value: index === 0 ? "Alice" : index === 1 ? "Bob" : "Product team",
+      },
+    }),
+  );
+}
+for (const evidenceSelect of renderer.root
+  .findAllByType("select")
+  .filter((node) => node.props["aria-label"]?.endsWith(" evidence review"))) {
+  await act(async () =>
+    evidenceSelect.props.onChange({ target: { value: "Founder reviewed" } }),
+  );
+}
+for (const checklistButton of renderer.root
+  .findAllByType("button")
+  .filter((node) => text(node) === "Show checklist")) {
+  await act(async () => checklistButton.props.onClick());
+}
+for (const checklistInput of renderer.root
+  .findAllByType("input")
+  .filter((node) => node.props.type === "checkbox")) {
+  await act(async () =>
+    checklistInput.props.onChange({ target: { checked: true } }),
+  );
+}
+await act(async () => button(renderer, "Ventures").props.onClick());
+await act(async () => button(renderer, "Open launch plan").props.onClick());
+await act(async () => button(renderer, "Product & technology").props.onClick());
 for (let i = 0; i < 5; i += 1)
   await act(async () =>
     button(
@@ -251,6 +286,14 @@ assert.equal(
   "Founder reviewed",
   "Product task board should persist per-task evidence review",
 );
+await act(async () =>
+  taskOwner.props.onChange({ target: { value: "Charlie" } }),
+);
+assert.match(
+  JSON.parse(store.get("launch7-v2"))[0].tasks.product[0].note,
+  /Charlie/,
+  "task editor owner should be the canonical persisted Product owner",
+);
 await act(async () => button(renderer, "Ventures").props.onClick());
 await act(async () => button(renderer, "Open launch plan").props.onClick());
 await act(async () => button(renderer, "Finance & ownership").props.onClick());
@@ -270,6 +313,55 @@ assert.equal(
   JSON.parse(store.get("launch7-draft-1-finance-0")).budgetAmount,
   "50000",
   "Finance budget should persist in local stage state",
+);
+const expenseCategory = renderer.root
+  .findAllByType("input")
+  .find((node) => node.props.placeholder === "Expense category");
+await act(async () =>
+  expenseCategory.props.onChange({ target: { value: "Cloud" } }),
+);
+await act(async () =>
+  renderer.root
+    .findAllByType("input")
+    .find((node) => node.props.placeholder === "Amount")
+    .props.onChange({ target: { value: "120" } }),
+);
+await act(async () => button(renderer, "Add expense").props.onClick());
+assert.equal(
+  JSON.parse(store.get("launch7-records-1")).expenses[0].category,
+  "Cloud",
+  "Finance expense records should persist per venture",
+);
+await act(async () => button(renderer, "Edit").props.onClick());
+await act(async () =>
+  renderer.root
+    .findAllByType("input")
+    .find((node) => node.props.placeholder === "Amount")
+    .props.onChange({ target: { value: "150" } }),
+);
+await act(async () => button(renderer, "Update expense").props.onClick());
+assert.equal(
+  JSON.parse(store.get("launch7-records-1")).expenses[0].amount,
+  "150",
+  "Finance expense records should be editable",
+);
+const ownershipDocName = renderer.root
+  .findAllByType("input")
+  .find((node) => node.props.placeholder === "Document name");
+await act(async () =>
+  ownershipDocName.props.onChange({ target: { value: "Cap table" } }),
+);
+await act(async () =>
+  renderer.root
+    .findAllByType("input")
+    .find((node) => node.props.placeholder === "Document type")
+    .props.onChange({ target: { value: "Ownership" } }),
+);
+await act(async () => button(renderer, "Add document").props.onClick());
+assert.equal(
+  JSON.parse(store.get("launch7-records-1")).ownershipDocuments[0].name,
+  "Cap table",
+  "Finance ownership documents should persist per venture",
 );
 await act(async () => button(renderer, "Funding").props.onClick());
 assert.ok(
@@ -374,6 +466,53 @@ assert.ok(
   ).length,
   "People should expose onboarding controls",
 );
+await act(async () =>
+  renderer.root
+    .findAllByType("input")
+    .find((node) => node.props.placeholder === "Role title")
+    .props.onChange({ target: { value: "Product designer" } }),
+);
+await act(async () =>
+  renderer.root
+    .findAllByType("input")
+    .find((node) => node.props.placeholder === "Person")
+    .props.onChange({ target: { value: "Jamie" } }),
+);
+await act(async () => button(renderer, "Add role").props.onClick());
+assert.equal(
+  JSON.parse(store.get("launch7-records-1")).roles[0].person,
+  "Jamie",
+  "People role records should persist per venture",
+);
+await act(async () =>
+  renderer.root
+    .findAllByType("input")
+    .filter((node) => node.props.placeholder === "Person")[1]
+    .props.onChange({ target: { value: "Jamie" } }),
+);
+await act(async () =>
+  renderer.root
+    .findAllByType("input")
+    .find((node) => node.props.placeholder === "Evidence reference")
+    .props.onChange({ target: { value: "Invite signed" } }),
+);
+await act(async () =>
+  renderer.root
+    .findAllByType("input")
+    .find((node) => node.props.placeholder === "Reviewer")
+    .props.onChange({ target: { value: "Founder" } }),
+);
+await act(async () =>
+  renderer.root
+    .findAllByType("button")
+    .find((node) => text(node) === "Add evidence")
+    .props.onClick(),
+);
+assert.equal(
+  JSON.parse(store.get("launch7-records-1")).peopleEvidence[0].evidence,
+  "Invite signed",
+  "People evidence records should persist per venture",
+);
 await act(async () => button(renderer, "Apps & integrations").props.onClick());
 assert.ok(
   renderer.root.findAll(
@@ -410,6 +549,42 @@ assert.ok(
   ).length,
   "Launch preparation should expose final checklist controls",
 );
+await act(async () =>
+  renderer.root
+    .findAllByType("input")
+    .find((node) => node.props.placeholder === "Decision")
+    .props.onChange({ target: { value: "Go to beta" } }),
+);
+await act(async () =>
+  renderer.root
+    .findAllByType("input")
+    .find((node) => node.props.placeholder === "Decision maker")
+    .props.onChange({ target: { value: "Founder" } }),
+);
+await act(async () => button(renderer, "Add decision").props.onClick());
+assert.equal(
+  JSON.parse(store.get("launch7-records-1")).decisions[0].decision,
+  "Go to beta",
+  "Launch Room decisions should persist per venture",
+);
+await act(async () =>
+  renderer.root
+    .findAllByType("input")
+    .find((node) => node.props.placeholder === "Dependency or blocker")
+    .props.onChange({ target: { value: "Analytics event mapping" } }),
+);
+await act(async () =>
+  renderer.root
+    .findAllByType("input")
+    .find((node) => node.props.placeholder === "Owner")
+    .props.onChange({ target: { value: "Product" } }),
+);
+await act(async () => button(renderer, "Add dependency").props.onClick());
+assert.equal(
+  JSON.parse(store.get("launch7-records-1")).dependencies[0].dependency,
+  "Analytics event mapping",
+  "Launch dependencies should persist per venture",
+);
 await act(async () => {
   renderer = create(React.createElement(App));
 });
@@ -437,6 +612,13 @@ assert.ok(
   ).length === 1 ||
     savedVenture.tasks.product.every((item) => item.status === "Done"),
   "saved completion should remain visible after reload",
+);
+await act(async () => button(renderer, "Finance & ownership").props.onClick());
+assert.ok(
+  renderer.root.findAll(
+    (node) => node.type === "b" && text(node).includes("Cloud"),
+  ).length,
+  "Finance records should survive app reload",
 );
 
 const fullyDone = JSON.parse(store.get("launch7-v2")).map((venture) => ({
@@ -760,6 +942,19 @@ await act(async () =>
   }),
 );
 await act(async () => button(renderer, "Generate demo draft").props.onClick());
+await act(async () =>
+  renderer.root.findAllByType("textarea")[0].props.onChange({
+    target: { value: "Changed AI brand brief" },
+  }),
+);
+await act(async () => button(renderer, "Review launch").props.onClick());
+assert.ok(
+  text(renderer.root).includes("Complete every workstream first"),
+  "changing the AI brief should invalidate stale generated output",
+);
+await act(async () => button(renderer, "Brand & collateral").props.onClick());
+await act(async () => button(renderer, "Draft with AI").props.onClick());
+await act(async () => button(renderer, "Generate demo draft").props.onClick());
 await act(async () => button(renderer, "Review launch").props.onClick());
 assert.ok(
   text(renderer.root).includes("Ready to submit for approval"),
@@ -803,6 +998,30 @@ assert.ok(
   "Brand person assignment should satisfy the Brand evidence gate",
 );
 await act(async () => button(renderer, "Brand & collateral").props.onClick());
+const replacementFile = renderer.root
+  .findAllByType("input")
+  .find((node) => node.props.type === "file");
+await act(async () =>
+  replacementFile.props.onChange({
+    target: {
+      files: [
+        { name: "brand-unreviewed.pdf", type: "application/pdf", size: 200 },
+      ],
+    },
+  }),
+);
+await act(async () => button(renderer, "Review launch").props.onClick());
+assert.ok(
+  text(renderer.root).includes("Complete every workstream first"),
+  "replacing a person deliverable should clear founder approval",
+);
+await act(async () => button(renderer, "Brand & collateral").props.onClick());
+const replacementReview = renderer.root
+  .findAllByType("input")
+  .find((node) => node.props.type === "checkbox");
+await act(async () =>
+  replacementReview.props.onChange({ target: { checked: true } }),
+);
 await act(async () => button(renderer, "Upload manually").props.onClick());
 const modeFile = renderer.root
   .findAllByType("input")
@@ -850,6 +1069,19 @@ assert.ok(
       text(node).includes("Complete every workstream first"),
   ).length,
   "fresh ventures with checked tasks must still require domain records",
+);
+store.set(
+  "launch7-draft-99-product-0",
+  JSON.stringify({ mvpScope: "MVP", deliveryMilestone: "Beta" }),
+);
+await act(async () => {
+  renderer = create(React.createElement(App));
+});
+await act(async () => button(renderer, "Open launch plan").props.onClick());
+await act(async () => button(renderer, "Review launch").props.onClick());
+assert.ok(
+  text(renderer.root).includes("Complete every workstream first"),
+  "Product review must require per-task owner, checklist and evidence review",
 );
 assert.ok(
   renderer.root.findAll(

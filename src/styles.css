@@ -976,6 +976,63 @@ button {
 .review-check input {
   accent-color: var(--teal);
 }
+.record-section {
+  margin-top: 18px;
+  padding-top: 16px;
+  border-top: 1px solid var(--line);
+}
+.record-heading {
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 10px;
+}
+.record-heading h4 {
+  margin: 0 0 3px;
+  color: var(--ink);
+  font-size: 14px;
+}
+.record-heading small,
+.record-row small {
+  display: block;
+  color: #8491a4;
+  font-size: 11px;
+}
+.record-form {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 8px;
+  align-items: center;
+}
+.record-form input {
+  min-height: 34px;
+  padding: 7px 9px;
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  background: #fff;
+  color: var(--ink);
+  font: inherit;
+  font-size: 12px;
+}
+.record-list {
+  display: grid;
+  gap: 6px;
+  margin-top: 10px;
+}
+.record-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 9px 10px;
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  background: #fbfcfe;
+}
+.record-row > span {
+  flex: 1;
+}
+.danger {
+  color: #b94d56;
+}
 .status-pill {
   font-size: 10px;
   border-radius: 20px;
@@ -1176,6 +1233,9 @@ button {
   .two-col {
     grid-template-columns: 1fr;
     gap: 0;
+  }
+  .record-form {
+    grid-template-columns: 1fr;
   }
   .form-hero h1 {
     font-size: 29px;
