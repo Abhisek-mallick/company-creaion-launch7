@@ -33,7 +33,8 @@ assert.equal(renderer.root.findAllByType('input')[0].props.value, 'Validated MVP
 for (let i = 0; i < 5; i += 1) await act(async () => button(renderer, i === 4 ? 'Save review' : 'Save & continue').props.onClick());
 const savedVenture = JSON.parse(store.get('launch7-v2'))[0];
 assert.equal(savedVenture.tasks.product.length, 5, 'Product should have five completion records');
-assert.ok(savedVenture.tasks.product.some((item) => item.status === 'Done'), 'Product stage completion should persist locally');
+assert.ok(savedVenture.tasks.product.every((item) => item.status === 'Done'), 'all Product stages should persist as done');
+assert.equal(Math.round(savedVenture.tasks.product.filter((item) => item.status === 'Done').length / savedVenture.tasks.product.length * 100), 100, 'Product progress should be 100% after all stages');
 
 await act(async () => button(renderer, 'Team onboarding').props.onClick());
 assert.ok(button(renderer, 'Generate local invitation link'), 'onboarding should expose invitation generation');
