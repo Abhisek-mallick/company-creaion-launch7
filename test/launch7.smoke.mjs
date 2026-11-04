@@ -103,7 +103,7 @@ assert.match(
 );
 assert.match(
   ui,
-  /JSON\.stringify\(\{\s*a: data\.a,\s*b: data\.b,\s*c: data\.c,\s*file: data\.file,\s*\}\)/,
+  /const note = JSON\.stringify\(data\)/,
   "wizard should preserve arbitrary draft text without delimiter truncation",
 );
 assert.match(
@@ -119,6 +119,11 @@ assert.match(
   css,
   /\.app-shell \.sidebar\s*\{\s*position:\s*relative/,
   "mobile app shell should keep navigation in the document flow",
+);
+assert.match(
+  css,
+  /\.app-shell\s*\{\s*display:\s*block/,
+  "mobile app shell should stack instead of retaining desktop flex width",
 );
 assert.match(
   ui,

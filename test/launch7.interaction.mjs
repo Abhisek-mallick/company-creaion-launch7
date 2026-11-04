@@ -136,6 +136,11 @@ assert.equal(
   5,
   "Product should have five completion records",
 );
+assert.match(
+  savedVenture.tasks.product[0].note,
+  /Validated MVP scope/,
+  "task evidence should include domain fields",
+);
 assert.ok(
   savedVenture.tasks.product.every((item) => item.status === "Done"),
   "all Product stages should persist as done",
@@ -178,6 +183,41 @@ assert.ok(
       node.props.placeholder === "Bootstrapped, grant, investor",
   ).length,
   "Finance funding stage should expose funding source",
+);
+const fundingSource = renderer.root
+  .findAllByType("input")
+  .find((node) => node.props.placeholder === "Bootstrapped, grant, investor");
+await act(async () =>
+  fundingSource.props.onChange({ target: { value: "Investor" } }),
+);
+await act(async () => button(renderer, "Ownership").props.onClick());
+const ownershipPercent = renderer.root
+  .findAllByType("input")
+  .find((node) => node.props.placeholder === "e.g. 70%");
+await act(async () =>
+  ownershipPercent.props.onChange({ target: { value: "70%" } }),
+);
+const financeReviewTab = renderer.root
+  .findAll((node) => node.type === "button" && text(node).includes("Review"))
+  .at(-1);
+await act(async () => financeReviewTab.props.onClick());
+assert.ok(
+  renderer.root
+    .findAllByType("input")
+    .some((node) => node.props.value === "50000"),
+  "Finance review should summarize the saved budget stage",
+);
+assert.ok(
+  renderer.root
+    .findAllByType("input")
+    .some((node) => node.props.value === "Investor"),
+  "Finance review should summarize the saved funding stage",
+);
+assert.ok(
+  renderer.root
+    .findAllByType("input")
+    .some((node) => node.props.value === "70%"),
+  "Finance review should summarize the saved ownership stage",
 );
 await act(async () => button(renderer, "Legal & formation").props.onClick());
 assert.ok(
@@ -371,9 +411,31 @@ assert.notEqual(
   "signature must not fall back to preview token",
 );
 
+await act(async () =>
+  button(renderer, "Create another invitation").props.onClick(),
+);
+const secondEmail = renderer.root
+  .findAllByType("input")
+  .find((node) => node.props.type === "email");
+await act(async () =>
+  secondEmail.props.onChange({ target: { value: "second@example.com" } }),
+);
+await act(async () =>
+  button(renderer, "Generate local invitation link").props.onClick(),
+);
+const inviteTokens = [...store.keys()]
+  .filter((key) => key.startsWith("launch7-invite-email-local-"))
+  .map((key) => key.replace("launch7-invite-email-", ""));
+assert.ok(
+  inviteTokens.length >= 2,
+  "signed members should be able to create another invitation",
+);
+const unsignedToken = inviteTokens.find(
+  (value) => value !== generatedInviteToken,
+);
+
 global.window.location.pathname = "/launch-7/onboarding";
-global.window.location.search = "?invitationToken=local-test";
-store.set("launch7-signed-name-local-other", "Different invitation member");
+global.window.location.search = "?invitationToken=" + unsignedToken;
 await act(async () => {
   renderer = create(React.createElement(App));
 });

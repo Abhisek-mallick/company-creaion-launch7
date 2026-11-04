@@ -1341,10 +1341,14 @@ button {
   font-size: 10px;
 }
 @media (max-width: 760px) {
+  .app-shell {
+    display: block;
+  }
   .app-shell .sidebar {
     position: relative;
     left: 0;
     width: 100%;
+    flex: 0 0 auto;
     height: auto;
     min-height: 0;
     display: block;

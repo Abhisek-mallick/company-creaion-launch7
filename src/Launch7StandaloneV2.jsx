@@ -526,11 +526,22 @@ function Wizard({ v, k, tasks, onTask }) {
       return { a: "", b: "", c: "", file: "" };
     }
   };
+  const readStageDraft = (index) => {
+    if (index !== tabs.length - 1)
+      return readDraft(`launch7-draft-${v.id}-${k}-${index}`);
+    return tabs.reduce(
+      (merged, _, stageIndex) => ({
+        ...merged,
+        ...readDraft(`launch7-draft-${v.id}-${k}-${stageIndex}`),
+      }),
+      {},
+    );
+  };
   const [data, setData] = useState(() => {
-    return readDraft(draftKey);
+    return readStageDraft(tab);
   });
   const [domainError, setDomainError] = useState("");
-  useEffect(() => setData(readDraft(draftKey)), [draftKey]);
+  useEffect(() => setData(readStageDraft(tab)), [draftKey]);
   const update = (key, val) => {
     const next = { ...data, [key]: val };
     setData(next);
@@ -562,12 +573,7 @@ function Wizard({ v, k, tasks, onTask }) {
     }
     setDomainError("");
     const t = tasks[Math.min(tab, tasks.length - 1)];
-    const note = JSON.stringify({
-      a: data.a,
-      b: data.b,
-      c: data.c,
-      file: data.file,
-    });
+    const note = JSON.stringify(data);
     if (tab === tabs.length - 1) {
       const stored = JSON.parse(localStorage.getItem("launch7-v2") || "[]");
       const source = stored.length ? stored : [v];
@@ -587,6 +593,7 @@ function Wizard({ v, k, tasks, onTask }) {
           : row,
       );
       localStorage.setItem("launch7-v2", JSON.stringify(savedRows));
+      localStorage.removeItem(`launch7-approval-${v.id}`);
       window.location.reload();
     } else onTask(k, t.id, { status: "In progress", note });
   };
@@ -1208,6 +1215,18 @@ function Onboarding() {
           <Check size={28} />
           <h2>Welcome to the team</h2>
           <p>Your signature is persisted locally for this invitation.</p>
+          <button
+            className="secondary"
+            onClick={() => {
+              setSigned(false);
+              setEmail("");
+              setName("");
+              setLink("");
+              setActiveInvite("preview");
+            }}
+          >
+            Create another invitation
+          </button>
         </div>
       ) : (
         <>
