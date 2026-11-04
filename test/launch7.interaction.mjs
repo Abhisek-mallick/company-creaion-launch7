@@ -197,6 +197,42 @@ assert.ok(
   ).length,
   "People should expose onboarding controls",
 );
+await act(async () => button(renderer, "Apps & integrations").props.onClick());
+assert.ok(
+  renderer.root.findAll(
+    (node) =>
+      node.type === "h3" &&
+      text(node).includes("Apps, permissions and integration checks"),
+  ).length,
+  "Apps should expose integration controls",
+);
+const toolInventory = renderer.root.findAllByType("input")[0];
+await act(async () =>
+  toolInventory.props.onChange({ target: { value: "Analytics" } }),
+);
+assert.equal(
+  JSON.parse(store.get("launch7-draft-1-apps-0")).toolInventory,
+  "Analytics",
+  "Apps inventory should persist locally",
+);
+await act(async () => button(renderer, "Partners & capital").props.onClick());
+assert.ok(
+  renderer.root.findAll(
+    (node) =>
+      node.type === "h3" &&
+      text(node).includes("Partners, commitments and capital references"),
+  ).length,
+  "Partners should expose capital controls",
+);
+await act(async () => button(renderer, "Launch preparation").props.onClick());
+assert.ok(
+  renderer.root.findAll(
+    (node) =>
+      node.type === "h3" &&
+      text(node).includes("Launch date, checks and recovery plan"),
+  ).length,
+  "Launch preparation should expose final checklist controls",
+);
 await act(async () => {
   renderer = create(React.createElement(App));
 });

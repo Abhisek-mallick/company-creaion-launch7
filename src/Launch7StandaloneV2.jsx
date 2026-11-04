@@ -544,7 +544,13 @@ function Wizard({ v, k, tasks, onTask }) {
           ? [data.entityType, data.jurisdiction, data.filingRoute]
           : k === "people"
             ? [data.roleTitle, data.personName, data.onboardingPlan]
-            : [];
+            : k === "apps"
+              ? [data.toolInventory, data.permissionOwner, data.testEvidence]
+              : k === "partners"
+                ? [data.partnerName, data.commitmentType, data.partnerReference]
+                : k === "launch"
+                  ? [data.launchDate, data.launchOwner, data.recoveryPlan]
+                  : [];
     if (
       tab === tabs.length - 1 &&
       required.some((value) => !String(value || "").trim())
@@ -689,7 +695,9 @@ function Wizard({ v, k, tasks, onTask }) {
   );
 }
 function DomainControls({ k, data, update }) {
-  if (["finance", "legal", "people"].includes(k)) {
+  if (
+    ["finance", "legal", "people", "apps", "partners", "launch"].includes(k)
+  ) {
     return <OperationsControls k={k} data={data} update={update} />;
   }
   if (k !== "brand" && k !== "product") return null;
@@ -911,6 +919,109 @@ function OperationsControls({ k, data, update }) {
             value={data.legalEvidence || ""}
             onChange={(e) => update("legalEvidence", e.target.value)}
             placeholder="Status, dates, document checklist and evidence notes"
+          />
+        </label>
+      </section>
+    );
+  }
+  if (k === "apps") {
+    return (
+      <section
+        className="domain-controls"
+        aria-label="Apps and integrations demo actions"
+      >
+        <span className="chip">FRONTEND DEMO</span>
+        <h3>Apps, permissions and integration checks</h3>
+        <p>
+          Map the tools your venture uses. No provider connection or credential
+          is made from this demo.
+        </p>
+        <div className="two-col">
+          {field("Tool inventory", "toolInventory", "CRM, analytics, payments")}
+          {field("Permission owner", "permissionOwner", "Name or role")}
+          {field(
+            "Integration method",
+            "integrationMethod",
+            "API, webhook, manual export",
+          )}
+          {field("Test date", "testDate", "Date", "date")}
+        </div>
+        <label className="field">
+          <span>Test evidence</span>
+          <textarea
+            value={data.testEvidence || ""}
+            onChange={(e) => update("testEvidence", e.target.value)}
+            placeholder="Expected result, observed result and evidence reference"
+          />
+        </label>
+      </section>
+    );
+  }
+  if (k === "partners") {
+    return (
+      <section
+        className="domain-controls"
+        aria-label="Partners and capital demo actions"
+      >
+        <span className="chip">FRONTEND DEMO</span>
+        <h3>Partners, commitments and capital references</h3>
+        <p>
+          Record relationship assumptions locally. This does not transfer funds
+          or create legal ownership.
+        </p>
+        <div className="two-col">
+          {field("Partner name", "partnerName", "Organization or person")}
+          {field(
+            "Commitment type",
+            "commitmentType",
+            "Investor, advisor, channel",
+          )}
+          {field("Commitment amount", "commitmentAmount", "Optional amount")}
+          {field(
+            "Partner reference",
+            "partnerReference",
+            "Agreement or meeting reference",
+          )}
+        </div>
+        <label className="field">
+          <span>Commitment notes</span>
+          <textarea
+            value={data.commitmentNotes || ""}
+            onChange={(e) => update("commitmentNotes", e.target.value)}
+            placeholder="What is promised, by whom and by when?"
+          />
+        </label>
+      </section>
+    );
+  }
+  if (k === "launch") {
+    return (
+      <section
+        className="domain-controls"
+        aria-label="Launch preparation demo actions"
+      >
+        <span className="chip">FRONTEND DEMO</span>
+        <h3>Launch date, checks and recovery plan</h3>
+        <p>
+          Prepare a launch checklist locally. The final action records a demo
+          approval state only.
+        </p>
+        <div className="two-col">
+          {field("Launch date", "launchDate", "Date", "date")}
+          {field("Launch owner", "launchOwner", "Name or role")}
+          {field(
+            "Go / no-go check",
+            "goNoGoCheck",
+            "What must be true before launch?",
+          )}
+          {field("Risk owner", "riskOwner", "Name or role")}
+        </div>
+        <label className="field">
+          <span>Recovery plan</span>
+          <textarea
+            value={data.recoveryPlan || ""}
+            onChange={(e) => update("recoveryPlan", e.target.value)}
+            placeholder="Rollback, communication and support plan"
           />
         </label>
       </section>
