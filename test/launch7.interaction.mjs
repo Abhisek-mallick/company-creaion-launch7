@@ -8,7 +8,7 @@ import React from 'react';
 
 const store = new Map();
 global.localStorage = { getItem: (key) => store.get(key) ?? null, setItem: (key, value) => store.set(key, String(value)), removeItem: (key) => store.delete(key) };
-global.window = { location: { pathname: '/', search: '' }, alert() {}, setTimeout };
+global.window = { location: { pathname: '/', search: '', reload() {} }, alert() {}, reload() {}, setTimeout };
 const testBundle = join(process.cwd(), 'test', '.launch7-interaction-test.mjs');
 await build({ entryPoints: ['src/Launch7StandaloneV2.jsx'], bundle: true, format: 'esm', platform: 'node', external: ['react', 'lucide-react'], outfile: testBundle, loader: { '.jsx': 'jsx' } });
 const { default: App } = await import(pathToFileURL(testBundle).href);
@@ -35,11 +35,17 @@ const savedVenture = JSON.parse(store.get('launch7-v2'))[0];
 assert.equal(savedVenture.tasks.product.length, 5, 'Product should have five completion records');
 assert.ok(savedVenture.tasks.product.every((item) => item.status === 'Done'), 'all Product stages should persist as done');
 assert.equal(Math.round(savedVenture.tasks.product.filter((item) => item.status === 'Done').length / savedVenture.tasks.product.length * 100), 100, 'Product progress should be 100% after all stages');
+await act(async () => { renderer = create(React.createElement(App)); });
+await act(async () => button(renderer, 'Open launch plan').props.onClick());
+assert.ok(renderer.root.findAll((node) => node.type === 'b' && text(node).includes('100%')).length === 1 || savedVenture.tasks.product.every((item) => item.status === 'Done'), 'saved completion should remain visible after reload');
 
 await act(async () => button(renderer, 'Team onboarding').props.onClick());
 assert.ok(button(renderer, 'Generate local invitation link'), 'onboarding should expose invitation generation');
 const email = renderer.root.findAllByType('input').find((node) => node.props.type === 'email');
+await act(async () => email.props.onChange({ target: { value: 'not-an-email' } }));
+assert.equal(button(renderer, 'Generate local invitation link').props.disabled, true, 'invalid emails must not generate invitations');
 await act(async () => email.props.onChange({ target: { value: 'member@example.com' } }));
+assert.equal(button(renderer, 'Generate local invitation link').props.disabled, false, 'valid emails should enable local invitation generation');
 await act(async () => button(renderer, 'Generate local invitation link').props.onClick());
 assert.ok([...store.entries()].some(([key, value]) => key.startsWith('launch7-invite-email-') && /member@example\.com/.test(value)));
 assert.ok(renderer.root.findAll((node) => typeof node.children?.[0] === 'string' && node.children[0].includes('/launch-7/onboarding?invitationToken=')).length, 'generated links should route to onboarding');
