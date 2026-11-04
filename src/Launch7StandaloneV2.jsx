@@ -150,10 +150,22 @@ const storedDomainData = (ventureId, key) => {
   }, {});
 };
 const domainReady = (ventureId, key) => {
+  return domainMissing(ventureId, key).length === 0;
+};
+const domainMissing = (ventureId, key) => {
   const data = storedDomainData(ventureId, key);
-  if (!(domainRequirement[key] || []).length) return true;
-  return domainRequirement[key].every((field) =>
-    String(data[field] || "").trim(),
+  if (key === "brand") {
+    if (data.method === "manual")
+      return data.file ? [] : ["local evidence file"];
+    if (data.method === "person") {
+      return data.assigneeName && data.instructions
+        ? []
+        : ["assignee and assignment brief"];
+    }
+    return data.aiStatus && data.aiOutput ? [] : ["AI demo output"];
+  }
+  return (domainRequirement[key] || []).filter(
+    (field) => !String(data[field] || "").trim(),
   );
 };
 export default function Launch7StandaloneV2() {
@@ -1309,7 +1321,9 @@ function Review({ v, setStep }) {
               {v.tasks[k].every((t) => t.status === "Done") &&
               domainReady(v.id, k)
                 ? "Ready"
-                : "Needs work"}
+                : domainMissing(v.id, k).length
+                  ? `Missing: ${domainMissing(v.id, k).join(", ")}`
+                  : "Needs work"}
             </small>
           </button>
         ))}

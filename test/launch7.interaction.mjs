@@ -675,6 +675,109 @@ assert.ok(
   "duplicate task references should count one unique evidence record",
 );
 
+const modeSource = JSON.parse(store.get("launch7-v2"))[0];
+const modeVenture = {
+  ...modeSource,
+  id: 103,
+  name: "Brand method gate",
+  tasks: Object.fromEntries(
+    Object.entries(modeSource.tasks).map(([key, items]) => [
+      key,
+      items.map((item) => ({ ...item, status: "Done" })),
+    ]),
+  ),
+};
+store.set("launch7-v2", JSON.stringify([modeVenture]));
+store.set("launch7-selected-venture", "103");
+for (const [key, data] of Object.entries({
+  product: { mvpScope: "MVP", deliveryMilestone: "Beta" },
+  apps: {
+    toolInventory: "Analytics",
+    permissionOwner: "Founder",
+    testEvidence: "Passed",
+  },
+  legal: {
+    entityType: "Private limited",
+    jurisdiction: "Delaware",
+    filingRoute: "Registered agent",
+  },
+  finance: {
+    budgetAmount: "50000",
+    fundingSource: "Investor",
+    ownershipPercent: "70%",
+  },
+  people: {
+    roleTitle: "Engineer",
+    personName: "Alex",
+    onboardingPlan: "Checklist",
+  },
+  partners: {
+    partnerName: "Northstar Labs",
+    commitmentType: "Pilot",
+    partnerReference: "LOI-001",
+  },
+  launch: {
+    launchDate: "2026-12-01",
+    launchOwner: "Alex",
+    recoveryPlan: "Rollback",
+  },
+}))
+  store.set(`launch7-draft-103-${key}-0`, JSON.stringify(data));
+global.window.location.pathname = "/";
+await act(async () => {
+  renderer = create(React.createElement(App));
+});
+await act(async () => button(renderer, "Open launch plan").props.onClick());
+await act(async () => button(renderer, "Brand & collateral").props.onClick());
+await act(async () => button(renderer, "Draft with AI").props.onClick());
+await act(async () =>
+  renderer.root.findAllByType("textarea")[0].props.onChange({
+    target: { value: "AI brand brief" },
+  }),
+);
+await act(async () => button(renderer, "Generate demo draft").props.onClick());
+await act(async () => button(renderer, "Review launch").props.onClick());
+assert.ok(
+  text(renderer.root).includes("Ready to submit for approval"),
+  "Brand AI output should satisfy the Brand evidence gate",
+);
+await act(async () => button(renderer, "Brand & collateral").props.onClick());
+await act(async () => button(renderer, "Assign to a person").props.onClick());
+await act(async () =>
+  renderer.root
+    .findAllByType("input")
+    .find((node) => node.props.placeholder === "Name")
+    .props.onChange({ target: { value: "Designer" } }),
+);
+await act(async () =>
+  renderer.root
+    .findAllByType("textarea")
+    .find((node) => node.props.placeholder === "What should be delivered?")
+    .props.onChange({ target: { value: "Approved brand deliverable" } }),
+);
+await act(async () => button(renderer, "Review launch").props.onClick());
+assert.ok(
+  text(renderer.root).includes("Ready to submit for approval"),
+  "Brand person assignment should satisfy the Brand evidence gate",
+);
+await act(async () => button(renderer, "Brand & collateral").props.onClick());
+await act(async () => button(renderer, "Upload manually").props.onClick());
+const modeFile = renderer.root
+  .findAllByType("input")
+  .find((node) => node.props.type === "file");
+await act(async () =>
+  modeFile.props.onChange({
+    target: {
+      files: [{ name: "brand-final.pdf", type: "application/pdf", size: 100 }],
+    },
+  }),
+);
+await act(async () => button(renderer, "Review launch").props.onClick());
+assert.ok(
+  text(renderer.root).includes("Ready to submit for approval"),
+  "Brand manual evidence should satisfy the Brand evidence gate",
+);
+
 const freshDoneVenture = {
   ...JSON.parse(store.get("launch7-v2"))[0],
   id: 99,
@@ -708,7 +811,9 @@ assert.ok(
 );
 assert.ok(
   renderer.root.findAll(
-    (node) => node.type === "small" && text(node).includes("Needs work"),
+    (node) =>
+      node.type === "small" &&
+      (text(node).includes("Missing:") || text(node).includes("Needs work")),
   ).length >= 1,
   "review readiness should explain incomplete domain workstreams",
 );
