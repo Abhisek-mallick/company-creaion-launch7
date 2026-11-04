@@ -928,6 +928,54 @@ button {
 .board-row > div {
   flex: 1;
 }
+.task-controls {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 8px;
+}
+.task-controls input,
+.task-controls select {
+  min-height: 30px;
+  padding: 5px 8px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: #fff;
+  color: var(--ink);
+  font: inherit;
+  font-size: 11px;
+}
+.text-button {
+  margin-top: 6px;
+  border: 0;
+  padding: 0;
+  background: transparent;
+  color: var(--teal);
+  font: inherit;
+  font-size: 11px;
+  cursor: pointer;
+}
+.task-checklist {
+  display: grid;
+  gap: 5px;
+  margin-top: 7px;
+  padding: 8px;
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  background: #fbfcfe;
+}
+.task-checklist label,
+.review-check {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  color: #536176;
+  font-size: 11px;
+}
+.task-checklist input,
+.review-check input {
+  accent-color: var(--teal);
+}
 .status-pill {
   font-size: 10px;
   border-radius: 20px;

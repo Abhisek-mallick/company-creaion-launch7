@@ -61,16 +61,50 @@ const taskTitles = [
   "Validate saved evidence",
   "Approve stage outcome",
 ];
+const productTaskTitles = [
+  "Define product vision",
+  "Capture target user",
+  "Prioritize MVP scope",
+  "Write acceptance criteria",
+  "Map the core user journey",
+  "Confirm technical constraints",
+  "Set delivery milestone",
+  "Assign delivery owner",
+  "Break work into milestones",
+  "Prepare build environment",
+  "Implement core workflow",
+  "Configure product analytics",
+  "Test critical paths",
+  "Record defects and fixes",
+  "Validate release readiness",
+  "Approve release outcome",
+];
+const productChecklist = [
+  "Decision recorded",
+  "Reference or evidence attached",
+  "Owner confirmed",
+];
+const productTasks = (existing = []) =>
+  productTaskTitles.map((title, i) => ({
+    ...(existing[i] || {}),
+    id: existing[i]?.id || `product${i}`,
+    title,
+    checklist: existing[i]?.checklist || productChecklist,
+    status: existing[i]?.status || "Not started",
+    note: existing[i]?.note || "",
+  }));
 const makeTasks = () =>
   Object.fromEntries(
     keys.map((k) => [
       k,
-      taskTitles.map((title, i) => ({
-        id: k + i,
-        title,
-        status: "Not started",
-        note: "",
-      })),
+      k === "product"
+        ? productTasks()
+        : taskTitles.map((title, i) => ({
+            id: k + i,
+            title,
+            status: "Not started",
+            note: "",
+          })),
     ]),
   );
 const initial = () => {
@@ -81,17 +115,7 @@ const initial = () => {
         ...v,
         tasks: {
           ...v.tasks,
-          product: [
-            ...(v.tasks.product || []),
-            ...taskTitles
-              .slice((v.tasks.product || []).length)
-              .map((title, i) => ({
-                id: `product${(v.tasks.product || []).length + i}`,
-                title,
-                status: "Not started",
-                note: "",
-              })),
-          ],
+          product: productTasks(v.tasks.product || []),
         },
       }));
     return [
@@ -158,9 +182,12 @@ const domainMissing = (ventureId, key) => {
     if (data.method === "manual")
       return data.file ? [] : ["local evidence file"];
     if (data.method === "person") {
-      return data.assigneeName && data.instructions
+      return data.assigneeName &&
+        data.instructions &&
+        data.deliverableFile &&
+        data.founderReviewed
         ? []
-        : ["assignee and assignment brief"];
+        : ["assignee, brief, deliverable and founder review"];
     }
     return data.aiStatus && data.aiOutput ? [] : ["AI demo output"];
   }
@@ -986,6 +1013,41 @@ function DomainControls({ k, data, update, updateMany }) {
               placeholder="What should be delivered?"
             />
           </Field>
+          {brand && (
+            <>
+              <label className="upload-row">
+                <FileText size={16} />
+                <span>
+                  <b>{data.deliverableFile || "Attach deliverable"}</b>
+                  <small>
+                    {data.deliverableFile
+                      ? "Browser-local demo file; no upload performed."
+                      : "A local deliverable is required for founder review."}
+                  </small>
+                </span>
+                <input
+                  type="file"
+                  onChange={(e) => {
+                    const file = e.target.files?.[0];
+                    if (file)
+                      updateMany({
+                        deliverableFile: file.name,
+                        deliverableType: file.type,
+                        deliverableSize: file.size,
+                      });
+                  }}
+                />
+              </label>
+              <label className="review-check">
+                <input
+                  type="checkbox"
+                  checked={Boolean(data.founderReviewed)}
+                  onChange={(e) => update("founderReviewed", e.target.checked)}
+                />
+                Founder reviewed this demo deliverable
+              </label>
+            </>
+          )}
         </div>
       )}
       {brand ? (
@@ -1350,6 +1412,7 @@ function Review({ v, setStep }) {
   );
 }
 function Tasks({ v, onTask }) {
+  const [expanded, setExpanded] = useState({});
   return (
     <section>
       <div className="page-heading">
@@ -1378,6 +1441,63 @@ function Tasks({ v, onTask }) {
               <div>
                 <b>{t.title}</b>
                 <small>{WS[k][0]}</small>
+                {k === "product" && (
+                  <>
+                    <div className="task-controls">
+                      <input
+                        aria-label={`${t.title} owner`}
+                        placeholder="Task owner"
+                        value={t.assigneeName || ""}
+                        onChange={(e) =>
+                          onTask(k, t.id, { assigneeName: e.target.value })
+                        }
+                      />
+                      <select
+                        aria-label={`${t.title} evidence review`}
+                        value={t.evidenceReview || "Missing"}
+                        onChange={(e) =>
+                          onTask(k, t.id, { evidenceReview: e.target.value })
+                        }
+                      >
+                        <option>Missing</option>
+                        <option>Ready for review</option>
+                        <option>Founder reviewed</option>
+                      </select>
+                    </div>
+                    <button
+                      className="text-button"
+                      onClick={() =>
+                        setExpanded((current) => ({
+                          ...current,
+                          [t.id]: !current[t.id],
+                        }))
+                      }
+                    >
+                      {expanded[t.id] ? "Hide checklist" : "Show checklist"}
+                    </button>
+                    {expanded[t.id] && (
+                      <div className="task-checklist">
+                        {(t.checklist || productChecklist).map((item, i) => (
+                          <label key={item}>
+                            <input
+                              type="checkbox"
+                              checked={Boolean(t.checklistState?.[i])}
+                              onChange={(e) =>
+                                onTask(k, t.id, {
+                                  checklistState: {
+                                    ...(t.checklistState || {}),
+                                    [i]: e.target.checked,
+                                  },
+                                })
+                              }
+                            />
+                            {item}
+                          </label>
+                        ))}
+                      </div>
+                    )}
+                  </>
+                )}
                 {(() => {
                   try {
                     const meta = JSON.parse(t.note || "{}");

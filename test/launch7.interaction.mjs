@@ -188,8 +188,8 @@ for (let i = 0; i < 5; i += 1)
 const savedVenture = JSON.parse(store.get("launch7-v2"))[0];
 assert.equal(
   savedVenture.tasks.product.length,
-  5,
-  "Product should have five completion records",
+  16,
+  "Product should have the full reference task collection",
 );
 assert.match(
   savedVenture.tasks.product[0].note,
@@ -226,6 +226,30 @@ assert.ok(
     (node) => node.type === "small" && text(node).includes("local demo"),
   ).length,
   "Assigned Tasks should show local assignment/evidence metadata",
+);
+await act(async () => button(renderer, "Show checklist").props.onClick());
+const taskOwner = renderer.root
+  .findAllByType("input")
+  .find((node) => node.props["aria-label"] === "Define product vision owner");
+await act(async () => taskOwner.props.onChange({ target: { value: "Alice" } }));
+const taskEvidence = renderer.root
+  .findAllByType("select")
+  .find(
+    (node) =>
+      node.props["aria-label"] === "Define product vision evidence review",
+  );
+await act(async () =>
+  taskEvidence.props.onChange({ target: { value: "Founder reviewed" } }),
+);
+assert.equal(
+  JSON.parse(store.get("launch7-v2"))[0].tasks.product[0].assigneeName,
+  "Alice",
+  "Product task board should persist per-task assignment",
+);
+assert.equal(
+  JSON.parse(store.get("launch7-v2"))[0].tasks.product[0].evidenceReview,
+  "Founder reviewed",
+  "Product task board should persist per-task evidence review",
 );
 await act(async () => button(renderer, "Ventures").props.onClick());
 await act(async () => button(renderer, "Open launch plan").props.onClick());
@@ -754,6 +778,24 @@ await act(async () =>
     .findAllByType("textarea")
     .find((node) => node.props.placeholder === "What should be delivered?")
     .props.onChange({ target: { value: "Approved brand deliverable" } }),
+);
+const personDeliverable = renderer.root
+  .findAllByType("input")
+  .find((node) => node.props.type === "file");
+await act(async () =>
+  personDeliverable.props.onChange({
+    target: {
+      files: [
+        { name: "brand-deliverable.pdf", type: "application/pdf", size: 100 },
+      ],
+    },
+  }),
+);
+const founderReview = renderer.root
+  .findAllByType("input")
+  .find((node) => node.props.type === "checkbox");
+await act(async () =>
+  founderReview.props.onChange({ target: { checked: true } }),
 );
 await act(async () => button(renderer, "Review launch").props.onClick());
 assert.ok(
