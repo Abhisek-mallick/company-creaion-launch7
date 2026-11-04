@@ -1845,4 +1845,36 @@ assert.equal(
   false,
   "actual Product re-review should clear the migration review gate",
 );
+const reviewedRows = JSON.parse(store.get("launch7-v2")).map((venture) => ({
+  ...venture,
+  tasks: {
+    ...venture.tasks,
+    product: venture.tasks.product.map((task) => ({
+      ...task,
+      status: "Done",
+      migrationReviewRequired: false,
+      evidenceReview: "Founder reviewed",
+      evidenceReference: task.evidenceReference || "REVIEWED",
+      checklistState: Object.fromEntries(
+        (task.checklist || []).map((_, index) => [index, true]),
+      ),
+    })),
+  },
+}));
+store.set("launch7-v2", JSON.stringify(reviewedRows));
+store.set("launch7-approval-99", "Submitted");
+store.delete("launch7-approval-invalidated-99");
+await act(async () => {
+  renderer = create(React.createElement(App));
+});
+assert.equal(
+  store.get("launch7-approval-99"),
+  "Submitted",
+  "a newly submitted approval should survive reload after genuine Product re-review",
+);
+assert.deepEqual(
+  JSON.parse(store.get("launch7-v2"))[0].tasks.product[1].checklist,
+  ["Regulator sign-off"],
+  "custom checklist text should survive the full upgrade and reload flow",
+);
 console.log("Launch7 component interaction tests passed");
