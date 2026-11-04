@@ -116,6 +116,8 @@ const progress = (v) => {
     : 0;
 };
 const domainRequirement = {
+  brand: ["file"],
+  product: ["mvpScope", "deliveryMilestone"],
   finance: ["budgetAmount", "fundingSource", "ownershipPercent"],
   legal: ["entityType", "jurisdiction", "filingRoute"],
   people: ["roleTitle", "personName", "onboardingPlan"],
@@ -149,21 +151,25 @@ const storedDomainData = (ventureId, key) => {
 };
 const domainReady = (ventureId, key) => {
   const data = storedDomainData(ventureId, key);
-  if (
-    !(domainRequirement[key] || []).length ||
-    !Object.entries(data).some(
-      ([field, value]) =>
-        field !== "__fieldUpdated" && String(value || "").trim(),
-    )
-  )
-    return true;
+  if (!(domainRequirement[key] || []).length) return true;
   return domainRequirement[key].every((field) =>
     String(data[field] || "").trim(),
   );
 };
 export default function Launch7StandaloneV2() {
   const [rows, setRows] = useState(initial);
-  const [selected, setSelected] = useState(0);
+  const [selectedId, setSelectedId] = useState(
+    () => localStorage.getItem("launch7-selected-venture") || "",
+  );
+  const selectedIndex = rows.findIndex((row) => String(row.id) === selectedId);
+  const selected = selectedIndex >= 0 ? selectedIndex : 0;
+  const setSelected = (index) => {
+    const row = rows[index];
+    if (row) {
+      setSelectedId(String(row.id));
+      localStorage.setItem("launch7-selected-venture", String(row.id));
+    }
+  };
   const [screen, setScreen] = useState(
     window.location.pathname.includes("onboarding")
       ? "onboarding"
@@ -290,7 +296,8 @@ export default function Launch7StandaloneV2() {
                   tasks: makeTasks(),
                 };
                 save([n, ...rows], "Venture created");
-                setSelected(0);
+                setSelectedId(String(n.id));
+                localStorage.setItem("launch7-selected-venture", String(n.id));
                 go("setup");
               }}
             />
@@ -416,17 +423,22 @@ function LaunchSnapshot({ venture }) {
         {keys.map((key) => {
           const items = venture.tasks[key] || [];
           const done = items.filter((item) => item.status === "Done").length;
-          const evidence = items.filter((item) => {
+          const evidenceKeys = items.flatMap((item) => {
             try {
               const parsed = JSON.parse(item.note || "{}");
-              return Object.entries(parsed).some(
+              const hasData = Object.entries(parsed).some(
                 ([field, value]) =>
                   field !== "__fieldUpdated" && String(value || "").trim(),
               );
+              if (!hasData) return [];
+              if (parsed.file)
+                return [`file:${parsed.file}:${parsed.fileSize || ""}`];
+              return [JSON.stringify(parsed)];
             } catch {
-              return false;
+              return [];
             }
-          }).length;
+          });
+          const evidence = new Set(evidenceKeys).size;
           return (
             <div className="snapshot-row" key={key}>
               <b>{WS[key][0]}</b>
@@ -534,7 +546,9 @@ function Setup({ v, step, setStep, onTask, review }) {
               active={step}
               setStep={setStep}
               done={
-                k !== "review" && v.tasks[k].every((t) => t.status === "Done")
+                k !== "review" &&
+                v.tasks[k].every((t) => t.status === "Done") &&
+                domainReady(v.id, k)
               }
             />
           ))}
@@ -707,9 +721,9 @@ function Wizard({ v, k, tasks, onTask }) {
       const stageNotes = (row) =>
         row.tasks[k].map((_, index) =>
           JSON.stringify(
-            readDraft(
-              `launch7-draft-${v.id}-${k}-${Math.min(index, tabs.length - 1)}`,
-            ),
+            index >= tabs.length - 1
+              ? data
+              : readDraft(`launch7-draft-${v.id}-${k}-${index}`),
           ),
         );
       const savedRows = source.map((row) =>
@@ -1277,10 +1291,14 @@ function Review({ v, setStep }) {
           <button key={k} onClick={() => setStep(k)}>
             <span
               className={
-                v.tasks[k].every((t) => t.status === "Done") ? "ready" : ""
+                v.tasks[k].every((t) => t.status === "Done") &&
+                domainReady(v.id, k)
+                  ? "ready"
+                  : ""
               }
             >
-              {v.tasks[k].every((t) => t.status === "Done") ? (
+              {v.tasks[k].every((t) => t.status === "Done") &&
+              domainReady(v.id, k) ? (
                 <Check size={14} />
               ) : (
                 <span />
@@ -1288,7 +1306,8 @@ function Review({ v, setStep }) {
             </span>
             {WS[k][0]}
             <small>
-              {v.tasks[k].every((t) => t.status === "Done")
+              {v.tasks[k].every((t) => t.status === "Done") &&
+              domainReady(v.id, k)
                 ? "Ready"
                 : "Needs work"}
             </small>

@@ -325,6 +325,13 @@ assert.ok(
     .some((node) => node.props.value === "90000"),
   "newer Budget edits should win over an older Review snapshot",
 );
+await act(async () => button(renderer, "Save review").props.onClick());
+assert.ok(
+  JSON.parse(store.get("launch7-v2"))[0].tasks.finance.some((item) =>
+    /90000/.test(item.note),
+  ),
+  "final Finance review evidence should use the current merged value",
+);
 await act(async () => button(renderer, "Legal & formation").props.onClick());
 assert.ok(
   renderer.root.findAll(
@@ -424,6 +431,38 @@ store.set(
     toolInventory: "Analytics",
     permissionOwner: "Founder",
     testEvidence: "Smoke test passed",
+  }),
+);
+store.set(
+  "launch7-draft-1-legal-0",
+  JSON.stringify({
+    entityType: "Private limited",
+    jurisdiction: "Delaware",
+    filingRoute: "Registered agent",
+  }),
+);
+store.set(
+  "launch7-draft-1-people-0",
+  JSON.stringify({
+    roleTitle: "Founding engineer",
+    personName: "Alex Morgan",
+    onboardingPlan: "Access and first-week checklist",
+  }),
+);
+store.set(
+  "launch7-draft-1-partners-0",
+  JSON.stringify({
+    partnerName: "Northstar Labs",
+    commitmentType: "Pilot",
+    partnerReference: "LOI-001",
+  }),
+);
+store.set(
+  "launch7-draft-1-launch-0",
+  JSON.stringify({
+    launchDate: "2026-12-01",
+    launchOwner: "Alex Morgan",
+    recoveryPlan: "Rollback and notify customers",
   }),
 );
 store.set("launch7-approval-1", "Submitted");
@@ -600,5 +639,77 @@ assert.ok(
     (node) => node.type === "h1" && text(node).includes("Invite and onboard"),
   ).length,
   "invitation token should open onboarding flow",
+);
+
+const selectedSource = JSON.parse(store.get("launch7-v2"))[0];
+const olderVenture = {
+  ...selectedSource,
+  id: 101,
+  name: "Older selected venture",
+  tasks: {
+    ...selectedSource.tasks,
+    brand: selectedSource.tasks.brand.map((item) => ({
+      ...item,
+      note: JSON.stringify({ file: "brand-kit.pdf", fileSize: 2048 }),
+    })),
+  },
+};
+const newerVenture = { ...selectedSource, id: 102, name: "Newer venture" };
+store.set("launch7-v2", JSON.stringify([newerVenture, olderVenture]));
+store.set("launch7-selected-venture", "101");
+global.window.location.pathname = "/";
+global.window.location.search = "";
+await act(async () => {
+  renderer = create(React.createElement(App));
+});
+assert.ok(
+  renderer.root.findAll(
+    (node) =>
+      typeof node.children?.[0] === "string" &&
+      node.children[0].includes("Older selected venture"),
+  ).length,
+  "selected venture should remain selected after reload",
+);
+assert.ok(
+  text(renderer.root).includes("1 evidence records"),
+  "duplicate task references should count one unique evidence record",
+);
+
+const freshDoneVenture = {
+  ...JSON.parse(store.get("launch7-v2"))[0],
+  id: 99,
+  name: "Fresh approval gate",
+  tasks: Object.fromEntries(
+    Object.entries(JSON.parse(store.get("launch7-v2"))[0].tasks).map(
+      ([key, items]) => [
+        key,
+        items.map((item) => ({ ...item, status: "Done" })),
+      ],
+    ),
+  ),
+  approval: "Draft",
+};
+store.set("launch7-v2", JSON.stringify([freshDoneVenture]));
+store.delete("launch7-approval-99");
+global.window.location.pathname = "/";
+global.window.location.search = "";
+await act(async () => {
+  renderer = create(React.createElement(App));
+});
+await act(async () => button(renderer, "Open launch plan").props.onClick());
+await act(async () => button(renderer, "Review launch").props.onClick());
+assert.ok(
+  renderer.root.findAll(
+    (node) =>
+      node.type === "h2" &&
+      text(node).includes("Complete every workstream first"),
+  ).length,
+  "fresh ventures with checked tasks must still require domain records",
+);
+assert.ok(
+  renderer.root.findAll(
+    (node) => node.type === "small" && text(node).includes("Needs work"),
+  ).length >= 1,
+  "review readiness should explain incomplete domain workstreams",
 );
 console.log("Launch7 component interaction tests passed");
