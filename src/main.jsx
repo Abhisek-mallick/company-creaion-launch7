@@ -80,5 +80,5 @@ function TaskBoard({ venture, onBack, onUpdateTask }) { const all = Object.entri
 function EmptyState({ onCreate }) { return <div className="empty-state"><div className="brand-mark">7</div><h1>Start your first venture</h1><p>Create a Launch7 plan to get a guided path through company formation, product readiness and launch review.</p><button className="primary" onClick={onCreate}><Plus size={18}/> New venture</button></div> }
 function TrendingIcon(){return <span className="mini-icon">↗</span>} function TargetIcon(){return <span className="mini-icon">◎</span>}
 
-import Launch7Standalone from './Launch7Standalone.jsx';
-createRoot(document.getElementById('root')).render(<Launch7Standalone/>);
+import Launch7StandaloneV2 from './Launch7StandaloneV2.jsx';
+createRoot(document.getElementById('root')).render(<Launch7StandaloneV2/>);

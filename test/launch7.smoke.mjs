@@ -16,8 +16,14 @@ assert.equal(computeReadiness(complete), 100);
 assert.equal(nextAction(complete), 'launch-review');
 assert.equal(allWorkstreamsComplete(complete), true);
 console.log('Launch7 model smoke tests passed');
-const ui = await readFile(new URL('../src/Launch7Standalone.jsx', import.meta.url), 'utf8');
+const ui = await readFile(new URL('../src/Launch7StandaloneV2.jsx', import.meta.url), 'utf8');
 for (const label of ['Budget', 'Funding', 'Ownership', 'Team & roles', 'Onboarding', 'Scope', 'Delivery', 'Filing route', 'Status & evidence', 'Partners', 'Commitments', 'Generate local invitation link', 'Submit for approval']) {
   assert.match(ui, new RegExp(label.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')), `standalone UI should include ${label}`);
 }
 console.log('Launch7 guided-flow coverage passed');
+assert.match(ui, /window\.location\.search\.includes\('invitationToken'\)/, 'invitation URLs should open onboarding mode');
+assert.match(ui, /localStorage\.setItem\('launch7-invite-email'/, 'invite email should persist locally');
+assert.match(ui, /localStorage\.setItem\('launch7-signed-name'/, 'signature should persist locally');
+assert.match(ui, /localStorage\.setItem\('launch7-approval','Submitted'\)/, 'approval should persist as explicit local state');
+assert.match(ui, /const tabs=WS\[k\]\[1\]/, 'wizard should use per-workstream stages');
+console.log('Launch7 persistence and navigation coverage passed');
