@@ -198,6 +198,14 @@ for (const evidenceSelect of renderer.root
     evidenceSelect.props.onChange({ target: { value: "Founder reviewed" } }),
   );
 }
+for (const [index, evidenceInput] of renderer.root
+  .findAllByType("input")
+  .filter((node) => node.props["aria-label"]?.endsWith(" evidence reference"))
+  .entries()) {
+  await act(async () =>
+    evidenceInput.props.onChange({ target: { value: `REF-${index}` } }),
+  );
+}
 for (const checklistButton of renderer.root
   .findAllByType("button")
   .filter((node) => text(node) === "Show checklist")) {
@@ -344,6 +352,11 @@ assert.equal(
   JSON.parse(store.get("launch7-records-1")).expenses[0].amount,
   "150",
   "Finance expense records should be editable",
+);
+assert.ok(
+  text(renderer.root).includes("Registered spend") &&
+    text(renderer.root).includes("150"),
+  "Finance should show calculated registered spend",
 );
 const ownershipDocName = renderer.root
   .findAllByType("input")
@@ -579,11 +592,33 @@ await act(async () =>
     .find((node) => node.props["aria-label"] === "decisions outcome")
     .props.onChange({ target: { value: "Approved" } }),
 );
+await act(async () =>
+  renderer.root
+    .findAllByType("input")
+    .find((node) => node.props.placeholder === "Decision scope")
+    .props.onChange({ target: { value: "Beta launch" } }),
+);
+await act(async () =>
+  renderer.root
+    .findAllByType("input")
+    .find((node) => node.props.placeholder === "Evidence reference")
+    .props.onChange({ target: { value: "Launch memo" } }),
+);
 await act(async () => button(renderer, "Add decision").props.onClick());
 assert.equal(
   JSON.parse(store.get("launch7-records-1")).decisions[0].decision,
   "Go to beta",
   "Launch Room decisions should persist per venture",
+);
+assert.equal(
+  JSON.parse(store.get("launch7-records-1")).decisions[0].scope,
+  "Beta launch",
+  "Launch decisions should persist scope",
+);
+assert.equal(
+  JSON.parse(store.get("launch7-records-1")).decisions[0].evidence,
+  "Launch memo",
+  "Launch decisions should persist evidence references",
 );
 await act(async () =>
   renderer.root
@@ -644,13 +679,29 @@ assert.ok(
   ).length,
   "Finance records should survive app reload",
 );
+await act(async () => button(renderer, "Ventures").props.onClick());
+assert.ok(
+  text(renderer.root).includes("local domain records"),
+  "dashboard should surface consolidated domain records",
+);
 
 const fullyDone = JSON.parse(store.get("launch7-v2")).map((venture) => ({
   ...venture,
   tasks: Object.fromEntries(
     Object.entries(venture.tasks).map(([key, items]) => [
       key,
-      items.map((item) => ({ ...item, status: "Done" })),
+      items.map((item, index) => ({
+        ...item,
+        status: "Done",
+        ...(key === "product"
+          ? {
+              assigneeName: item.assigneeName || "Product team",
+              evidenceReview: "Founder reviewed",
+              evidenceReference: item.evidenceReference || `REF-${index}`,
+              checklistState: { 0: true, 1: true, 2: true },
+            }
+          : {}),
+      })),
     ]),
   ),
 }));
@@ -1036,7 +1087,18 @@ const modeVenture = {
   tasks: Object.fromEntries(
     Object.entries(modeSource.tasks).map(([key, items]) => [
       key,
-      items.map((item) => ({ ...item, status: "Done" })),
+      items.map((item, index) => ({
+        ...item,
+        status: "Done",
+        ...(key === "product"
+          ? {
+              assigneeName: item.assigneeName || "Product team",
+              evidenceReview: "Founder reviewed",
+              evidenceReference: item.evidenceReference || `REF-${index}`,
+              checklistState: { 0: true, 1: true, 2: true },
+            }
+          : {}),
+      })),
     ]),
   ),
 };
@@ -1267,6 +1329,15 @@ await act(async () =>
   firstProductEvidence.props.onChange({
     target: { value: "Founder reviewed" },
   }),
+);
+const firstProductReference = renderer.root
+  .findAllByType("input")
+  .find(
+    (node) =>
+      node.props["aria-label"] === "Define product vision evidence reference",
+  );
+await act(async () =>
+  firstProductReference.props.onChange({ target: { value: "REF-1" } }),
 );
 await act(async () =>
   renderer.root

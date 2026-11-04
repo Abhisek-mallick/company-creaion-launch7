@@ -188,6 +188,8 @@ const domainReady = (ventureId, key, tasks = []) => {
 const productTaskMissing = (task) => {
   const missing = [];
   if (!String(task.assigneeName || "").trim()) missing.push("owner");
+  if (!String(task.evidenceReference || "").trim())
+    missing.push("evidence reference");
   if (task.evidenceReview !== "Founder reviewed")
     missing.push("evidence review");
   if (
@@ -550,6 +552,43 @@ function Dashboard({ rows, open, newV, selected }) {
 function LaunchSnapshot({ venture }) {
   const approval =
     localStorage.getItem(`launch7-approval-${venture.id}`) || "Draft";
+  const records = storedRecords(venture.id);
+  const blockers = [
+    ...(records.dependencies || [])
+      .filter(
+        (item) =>
+          ![
+            "resolved",
+            "cleared",
+            "complete",
+            "completed",
+            "unblocked",
+          ].includes(
+            String(item.status || "")
+              .trim()
+              .toLowerCase(),
+          ),
+      )
+      .map((item) => `Dependency: ${item.dependency}`),
+    ...(records.decisions || [])
+      .filter(
+        (item) =>
+          String(item.outcome || item.status || "")
+            .trim()
+            .toLowerCase() !== "approved",
+      )
+      .map((item) => `Decision: ${item.decision}`),
+    ...(records.peopleEvidence || [])
+      .filter(
+        (item) =>
+          !["accepted", "approved", "complete", "completed"].includes(
+            String(item.status || "")
+              .trim()
+              .toLowerCase(),
+          ),
+      )
+      .map((item) => `People evidence: ${item.evidence}`),
+  ];
   return (
     <section className="launch-snapshot panel">
       <div className="section-head">
@@ -593,6 +632,27 @@ function LaunchSnapshot({ venture }) {
             </div>
           );
         })}
+      </div>
+      <div className="snapshot-registers">
+        <div>
+          <small>REGISTERED RECORDS</small>
+          <b>
+            {(records.expenses || []).length +
+              (records.ownershipDocuments || []).length +
+              (records.roles || []).length +
+              (records.peopleEvidence || []).length +
+              (records.decisions || []).length +
+              (records.dependencies || []).length}
+          </b>
+          <span>local domain records</span>
+        </div>
+        <div>
+          <small>BLOCKERS</small>
+          <b>{blockers.length}</b>
+          <span>
+            {blockers.length ? blockers.join(" · ") : "None recorded"}
+          </span>
+        </div>
       </div>
     </section>
   );
@@ -1348,6 +1408,15 @@ function OperationsControls({ k, ventureId, data, update }) {
       ))}
     </div>
   );
+  const expenseTotal = (records.expenses || []).reduce(
+    (total, item) => total + (Number(item.amount) || 0),
+    0,
+  );
+  const budgetTotal = Number(data.budgetAmount) || 0;
+  const budgetRemaining = Math.max(budgetTotal - expenseTotal, 0);
+  const runwayEstimate = expenseTotal
+    ? `${(budgetTotal / expenseTotal).toFixed(1)} periods`
+    : "Add expenses";
   const field = (label, key, placeholder, type = "text") => (
     <Field label={label}>
       <input
@@ -1367,6 +1436,20 @@ function OperationsControls({ k, ventureId, data, update }) {
           Record planning assumptions locally. No money movement, cap-table sync
           or banking connection is performed.
         </p>
+        <div className="record-metrics">
+          <span>
+            <small>Registered spend</small>
+            <b>{expenseTotal.toLocaleString()}</b>
+          </span>
+          <span>
+            <small>Budget remaining</small>
+            <b>{budgetRemaining.toLocaleString()}</b>
+          </span>
+          <span>
+            <small>Runway estimate</small>
+            <b>{runwayEstimate}</b>
+          </span>
+        </div>
         <div className="two-col">
           {field("Budget amount", "budgetAmount", "e.g. 50000", "number")}
           {field(
@@ -1593,6 +1676,8 @@ function OperationsControls({ k, ventureId, data, update }) {
           <div className="record-form">
             {recordInput("decisions", "decision", "Decision")}
             {recordInput("decisions", "owner", "Decision maker")}
+            {recordInput("decisions", "scope", "Decision scope")}
+            {recordInput("decisions", "evidence", "Evidence reference")}
             {recordSelect("decisions", "outcome", [
               "Pending review",
               "Approved",
@@ -1601,12 +1686,26 @@ function OperationsControls({ k, ventureId, data, update }) {
             {recordInput("decisions", "date", "Date", "date")}
             <button
               className="secondary"
-              onClick={() => saveRecord("decisions", ["decision", "owner"])}
+              onClick={() =>
+                saveRecord("decisions", [
+                  "decision",
+                  "owner",
+                  "scope",
+                  "evidence",
+                ])
+              }
             >
               {editing.decisions ? "Update decision" : "Add decision"}
             </button>
           </div>
-          {recordList("decisions", ["decision", "owner", "outcome", "date"])}
+          {recordList("decisions", [
+            "decision",
+            "owner",
+            "scope",
+            "evidence",
+            "outcome",
+            "date",
+          ])}
         </div>
         <div className="record-section">
           <div className="record-heading">
@@ -1868,6 +1967,16 @@ function Tasks({ v, onTask }) {
                         <option>Ready for review</option>
                         <option>Founder reviewed</option>
                       </select>
+                      <input
+                        aria-label={`${t.title} evidence reference`}
+                        placeholder="Evidence reference"
+                        value={t.evidenceReference || ""}
+                        onChange={(e) =>
+                          onTask(k, t.id, {
+                            evidenceReference: e.target.value,
+                          })
+                        }
+                      />
                     </div>
                     <button
                       className="text-button"
