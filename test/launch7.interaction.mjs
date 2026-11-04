@@ -672,6 +672,7 @@ store.set(
   }),
 );
 store.set("launch7-approval-1", "Submitted");
+store.delete("launch7-approval-invalidated-1");
 await act(async () => {
   renderer = create(React.createElement(App));
 });
@@ -684,6 +685,70 @@ assert.ok(
   ).length,
   "approved venture should show submitted state",
 );
+await act(async () => button(renderer, "Ventures").props.onClick());
+await act(async () => button(renderer, "Open launch plan").props.onClick());
+await act(async () => button(renderer, "Finance & ownership").props.onClick());
+await act(async () =>
+  renderer.root
+    .findAllByType("button")
+    .find((node) => text(node) === "Edit")
+    .props.onClick(),
+);
+await act(async () =>
+  renderer.root
+    .findAllByType("input")
+    .find((node) => node.props.placeholder === "Amount")
+    .props.onChange({ target: { value: "175" } }),
+);
+await act(async () => button(renderer, "Update expense").props.onClick());
+await act(async () => button(renderer, "Launch review").props.onClick());
+assert.ok(
+  text(renderer.root).includes("Ready to submit for approval"),
+  "editing a Finance register should invalidate submitted approval",
+);
+await act(async () => button(renderer, "Launch preparation").props.onClick());
+await act(async () =>
+  renderer.root
+    .findAllByType("button")
+    .find((node) => node.props["aria-label"]?.startsWith("Edit dependencies"))
+    .props.onClick(),
+);
+await act(async () =>
+  renderer.root
+    .findAllByType("input")
+    .find((node) => node.props.placeholder === "Status")
+    .props.onChange({ target: { value: "Blocked" } }),
+);
+await act(async () => button(renderer, "Update dependency").props.onClick());
+await act(async () => button(renderer, "Launch review").props.onClick());
+assert.ok(
+  text(renderer.root).includes("blocked launch dependencies"),
+  "a blocked Launch Room dependency should block readiness with a reason",
+);
+await act(async () => button(renderer, "People & operations").props.onClick());
+await act(async () =>
+  renderer.root
+    .findAllByType("button")
+    .find((node) => node.props["aria-label"]?.startsWith("Edit peopleEvidence"))
+    .props.onClick(),
+);
+await act(async () =>
+  renderer.root
+    .findAllByType("input")
+    .find((node) => node.props.placeholder === "Review status")
+    .props.onChange({ target: { value: "Rejected" } }),
+);
+await act(async () => button(renderer, "Update evidence").props.onClick());
+await act(async () => button(renderer, "Launch review").props.onClick());
+assert.ok(
+  text(renderer.root).includes("rejected people evidence"),
+  "rejected People evidence should block readiness with a reason",
+);
+const clearedRegisterState = JSON.parse(store.get("launch7-records-1"));
+clearedRegisterState.dependencies[0].status = "";
+clearedRegisterState.peopleEvidence[0].status = "";
+store.set("launch7-records-1", JSON.stringify(clearedRegisterState));
+store.delete("launch7-approval-invalidated-1");
 store.set(
   "launch7-draft-1-finance-0",
   JSON.stringify({
@@ -1037,6 +1102,128 @@ await act(async () => button(renderer, "Review launch").props.onClick());
 assert.ok(
   text(renderer.root).includes("Ready to submit for approval"),
   "Brand manual evidence should satisfy the Brand evidence gate",
+);
+
+const taskGateSource = JSON.parse(store.get("launch7-v2"))[0];
+const taskGateVenture = {
+  ...taskGateSource,
+  id: 104,
+  name: "Product task gate",
+  tasks: Object.fromEntries(
+    Object.entries(taskGateSource.tasks).map(([key, items]) => [
+      key,
+      items.map((item) => ({
+        ...item,
+        status: "Not started",
+        note: "",
+        ...(key === "product"
+          ? { assigneeName: "", evidenceReview: "Missing", checklistState: {} }
+          : {}),
+      })),
+    ]),
+  ),
+};
+store.set("launch7-v2", JSON.stringify([taskGateVenture]));
+store.set("launch7-selected-venture", "104");
+for (const [key, data] of Object.entries({
+  brand: {
+    method: "ai",
+    aiStatus: "Generated demo draft ready for review",
+    aiOutput: "Brand draft",
+  },
+  product: { mvpScope: "MVP", deliveryMilestone: "Beta" },
+  apps: {
+    toolInventory: "Analytics",
+    permissionOwner: "Founder",
+    testEvidence: "Passed",
+  },
+  legal: {
+    entityType: "Company",
+    jurisdiction: "Delaware",
+    filingRoute: "Agent",
+  },
+  finance: {
+    budgetAmount: "50000",
+    fundingSource: "Investor",
+    ownershipPercent: "70%",
+  },
+  people: {
+    roleTitle: "Engineer",
+    personName: "Alex",
+    onboardingPlan: "Checklist",
+  },
+  partners: {
+    partnerName: "Partner",
+    commitmentType: "Pilot",
+    partnerReference: "REF",
+  },
+  launch: {
+    launchDate: "2026-12-01",
+    launchOwner: "Alex",
+    recoveryPlan: "Rollback",
+  },
+}))
+  store.set(`launch7-draft-104-${key}-0`, JSON.stringify(data));
+global.window.location.pathname = "/";
+await act(async () => {
+  renderer = create(React.createElement(App));
+});
+await act(async () => button(renderer, "Assigned tasks").props.onClick());
+const firstProductOwner = renderer.root
+  .findAllByType("input")
+  .find((node) => node.props["aria-label"] === "Define product vision owner");
+await act(async () =>
+  firstProductOwner.props.onChange({ target: { value: "Alice" } }),
+);
+const firstProductEvidence = renderer.root
+  .findAllByType("select")
+  .find(
+    (node) =>
+      node.props["aria-label"] === "Define product vision evidence review",
+  );
+await act(async () =>
+  firstProductEvidence.props.onChange({
+    target: { value: "Founder reviewed" },
+  }),
+);
+await act(async () =>
+  renderer.root
+    .findAllByType("button")
+    .find((node) => text(node) === "Show checklist")
+    .props.onClick(),
+);
+for (const checklistInput of renderer.root
+  .findAllByType("input")
+  .filter((node) => node.props.type === "checkbox")) {
+  await act(async () =>
+    checklistInput.props.onChange({ target: { checked: true } }),
+  );
+}
+await act(async () =>
+  renderer.root
+    .findAll(
+      (node) =>
+        node.type === "button" &&
+        node.props.className?.includes("check-button"),
+    )[5]
+    .props.onClick(),
+);
+assert.equal(
+  JSON.parse(store.get("launch7-v2"))[0].tasks.product[0].status,
+  "Done",
+  "one Product task should complete when its own gate is satisfied",
+);
+assert.equal(
+  JSON.parse(store.get("launch7-v2"))[0].tasks.product[1].status,
+  "Not started",
+  "other Product tasks should remain incomplete",
+);
+await act(async () => button(renderer, "Ventures").props.onClick());
+await act(async () => button(renderer, "Open launch plan").props.onClick());
+await act(async () => button(renderer, "Review launch").props.onClick());
+assert.ok(
+  text(renderer.root).includes("15 product task reviews"),
+  "final Product readiness should remain blocked by the other tasks",
 );
 
 const freshDoneVenture = {

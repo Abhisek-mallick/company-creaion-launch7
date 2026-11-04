@@ -127,7 +127,7 @@ assert.match(
 );
 assert.match(
   ui,
-  /done &&\s*\(\s*localStorage\.getItem\(approvalKey\) === "Submitted"/,
+  /submitted\s*=\s*sent\s*&&\s*!invalidated\s*&&\s*localStorage\.getItem\(approvalKey\) === "Submitted"/,
   "approval should only remain submitted while all workstreams are complete",
 );
 console.log("Launch7 persistence and navigation coverage passed");

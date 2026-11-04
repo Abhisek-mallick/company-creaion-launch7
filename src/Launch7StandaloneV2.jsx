@@ -173,8 +173,36 @@ const storedDomainData = (ventureId, key) => {
     }
   }, {});
 };
+const storedRecords = (ventureId) => {
+  try {
+    return (
+      JSON.parse(localStorage.getItem(`launch7-records-${ventureId}`)) || {}
+    );
+  } catch {
+    return {};
+  }
+};
 const domainReady = (ventureId, key, tasks = []) => {
   return domainMissing(ventureId, key, tasks).length === 0;
+};
+const productTaskMissing = (task) => {
+  const missing = [];
+  if (!String(task.assigneeName || "").trim()) missing.push("owner");
+  if (task.evidenceReview !== "Founder reviewed")
+    missing.push("evidence review");
+  if (
+    !(task.checklist || productChecklist).every(
+      (_, index) => task.checklistState?.[index],
+    )
+  )
+    missing.push("checklist");
+  return missing;
+};
+const taskReady = (venture, key, id, patch = {}) => {
+  if (key !== "product")
+    return domainReady(venture.id, key, venture.tasks[key]);
+  const current = venture.tasks[key].find((task) => task.id === id) || {};
+  return productTaskMissing({ ...current, ...patch }).length === 0;
 };
 const domainMissing = (ventureId, key, tasks = []) => {
   const data = storedDomainData(ventureId, key);
@@ -196,15 +224,47 @@ const domainMissing = (ventureId, key, tasks = []) => {
   );
   if (key === "product" && tasks.length) {
     const incomplete = tasks.filter(
-      (task) =>
-        !String(task.assigneeName || "").trim() ||
-        task.evidenceReview !== "Founder reviewed" ||
-        !(task.checklist || productChecklist).every(
-          (_, index) => task.checklistState?.[index],
-        ),
+      (task) => productTaskMissing(task).length,
     ).length;
     if (incomplete) missing.push(`${incomplete} product task reviews`);
   }
+  const records = storedRecords(ventureId);
+  if (
+    key === "launch" &&
+    (records.dependencies || []).some((item) =>
+      String(item.status || "")
+        .toLowerCase()
+        .includes("blocked"),
+    )
+  )
+    missing.push("blocked launch dependencies");
+  if (
+    key === "launch" &&
+    (records.decisions || []).some((item) =>
+      String(item.outcome || item.status || "")
+        .toLowerCase()
+        .includes("rejected"),
+    )
+  )
+    missing.push("rejected launch decision");
+  if (
+    key === "people" &&
+    (records.peopleEvidence || []).some((item) =>
+      String(item.status || "")
+        .toLowerCase()
+        .includes("rejected"),
+    )
+  )
+    missing.push("rejected people evidence");
+  if (
+    key === "finance" &&
+    (records.ownershipDocuments || []).some((item) =>
+      String(item.status || "")
+        .toLowerCase()
+        .includes("rejected"),
+    )
+  )
+    missing.push("rejected ownership document");
   return missing;
 };
 export default function Launch7StandaloneV2() {
@@ -236,9 +296,11 @@ export default function Launch7StandaloneV2() {
     setTimeout(() => setNotice(""), 1800);
   };
   const task = (key, id, patch) => {
-    if (patch.status === "Done" && !domainReady(v.id, key, v.tasks[key])) {
+    if (patch.status === "Done" && !taskReady(v, key, id, patch)) {
       setNotice(
-        "Complete the required domain fields before checking this task.",
+        key === "product"
+          ? "Complete this Product task's owner, checklist and evidence review first."
+          : "Complete the required domain fields before checking this task.",
       );
       setTimeout(() => setNotice(""), 2200);
       return;
@@ -1195,6 +1257,8 @@ function OperationsControls({ k, ventureId, data, update }) {
   const saveRecords = (next) => {
     setRecords(next);
     localStorage.setItem(recordStorageKey, JSON.stringify(next));
+    localStorage.removeItem(`launch7-approval-${ventureId}`);
+    localStorage.setItem(`launch7-approval-invalidated-${ventureId}`, "1");
   };
   const setDraft = (type, field, value) =>
     setDrafts((current) => ({
@@ -1247,12 +1311,14 @@ function OperationsControls({ k, ventureId, data, update }) {
           </span>
           <button
             className="text-button"
+            aria-label={`Edit ${type} ${item.id}`}
             onClick={() => editRecord(type, item)}
           >
             Edit
           </button>
           <button
             className="text-button danger"
+            aria-label={`Remove ${type} ${item.id}`}
             onClick={() => removeRecord(type, item.id)}
           >
             Remove
@@ -1630,6 +1696,8 @@ function OperationsControls({ k, ventureId, data, update }) {
 }
 function Review({ v, setStep }) {
   const approvalKey = `launch7-approval-${v.id}`;
+  const invalidated =
+    localStorage.getItem(`launch7-approval-invalidated-${v.id}`) === "1";
   const done = keys.every(
     (k) =>
       v.tasks[k].every((t) => t.status === "Done") &&
@@ -1637,12 +1705,15 @@ function Review({ v, setStep }) {
   );
   const [sent, setSent] = useState(
     done &&
+      !invalidated &&
       (localStorage.getItem(approvalKey) === "Submitted" ||
         v.approval === "Submitted"),
   );
   useEffect(() => {
-    if (!done) setSent(false);
-  }, [done]);
+    if (!done || invalidated) setSent(false);
+  }, [done, invalidated]);
+  const submitted =
+    sent && !invalidated && localStorage.getItem(approvalKey) === "Submitted";
   return (
     <div className="panel launch-review">
       <div className="review-icon">
@@ -1650,7 +1721,7 @@ function Review({ v, setStep }) {
       </div>
       <p className="eyebrow">FINAL REVIEW</p>
       <h2>
-        {sent
+        {submitted
           ? "Submitted for approval"
           : done
             ? "Ready to submit for approval"
@@ -1695,13 +1766,14 @@ function Review({ v, setStep }) {
       </div>
       <button
         className="primary review-submit"
-        disabled={!done || sent}
+        disabled={!done || submitted}
         onClick={() => {
           localStorage.setItem(approvalKey, "Submitted");
+          localStorage.removeItem(`launch7-approval-invalidated-${v.id}`);
           setSent(true);
         }}
       >
-        {sent ? "Awaiting approval" : "Submit for approval"}{" "}
+        {submitted ? "Awaiting approval" : "Submit for approval"}{" "}
         <ArrowRight size={16} />
       </button>
     </div>
