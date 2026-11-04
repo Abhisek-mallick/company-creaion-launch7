@@ -328,6 +328,10 @@ export default function Launch7StandaloneV2() {
                   ? {
                       ...t,
                       ...patch,
+                      ...(patch.evidenceReference !== undefined &&
+                      patch.evidenceReference !== t.evidenceReference
+                        ? { evidenceReview: "Missing" }
+                        : {}),
                       ...(patch.assigneeName !== undefined
                         ? {
                             note: (() => {
@@ -589,6 +593,15 @@ function LaunchSnapshot({ venture }) {
       )
       .map((item) => `People evidence: ${item.evidence}`),
   ];
+  keys.forEach((key) => {
+    const missing = domainMissing(venture.id, key, venture.tasks[key]);
+    const incompleteTasks = (venture.tasks[key] || []).filter(
+      (task) => task.status !== "Done",
+    ).length;
+    if (incompleteTasks)
+      blockers.push(`${WS[key][0]}: ${incompleteTasks} tasks incomplete`);
+    missing.forEach((reason) => blockers.push(`${WS[key][0]}: ${reason}`));
+  });
   return (
     <section className="launch-snapshot panel">
       <div className="section-head">
@@ -1408,11 +1421,14 @@ function OperationsControls({ k, ventureId, data, update }) {
       ))}
     </div>
   );
+  const financeData =
+    k === "finance" ? storedDomainData(ventureId, "finance") : data;
   const expenseTotal = (records.expenses || []).reduce(
     (total, item) => total + (Number(item.amount) || 0),
     0,
   );
-  const budgetTotal = Number(data.budgetAmount) || 0;
+  const budgetTotal =
+    Number(String(financeData.budgetAmount || "").replace(/,/g, "")) || 0;
   const budgetRemaining = Math.max(budgetTotal - expenseTotal, 0);
   const runwayEstimate = expenseTotal
     ? `${(budgetTotal / expenseTotal).toFixed(1)} periods`
@@ -1422,7 +1438,14 @@ function OperationsControls({ k, ventureId, data, update }) {
       <input
         type={type}
         value={data[key] || ""}
-        onChange={(e) => update(key, e.target.value)}
+        onChange={(e) =>
+          update(
+            key,
+            k === "finance" && key === "budgetAmount"
+              ? e.target.value.replace(/,/g, "")
+              : e.target.value,
+          )
+        }
         placeholder={placeholder}
       />
     </Field>

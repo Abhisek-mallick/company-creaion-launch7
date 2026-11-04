@@ -206,6 +206,13 @@ for (const [index, evidenceInput] of renderer.root
     evidenceInput.props.onChange({ target: { value: `REF-${index}` } }),
   );
 }
+for (const evidenceSelect of renderer.root
+  .findAllByType("select")
+  .filter((node) => node.props["aria-label"]?.endsWith(" evidence review"))) {
+  await act(async () =>
+    evidenceSelect.props.onChange({ target: { value: "Founder reviewed" } }),
+  );
+}
 for (const checklistButton of renderer.root
   .findAllByType("button")
   .filter((node) => text(node) === "Show checklist")) {
@@ -294,6 +301,20 @@ assert.equal(
   "Founder reviewed",
   "Product task board should persist per-task evidence review",
 );
+const taskEvidenceReference = renderer.root
+  .findAllByType("input")
+  .find(
+    (node) =>
+      node.props["aria-label"] === "Define product vision evidence reference",
+  );
+await act(async () =>
+  taskEvidenceReference.props.onChange({ target: { value: "REF-CHANGED" } }),
+);
+assert.equal(
+  JSON.parse(store.get("launch7-v2"))[0].tasks.product[0].evidenceReview,
+  "Missing",
+  "changing Product evidence reference should require a fresh review",
+);
 await act(async () =>
   taskOwner.props.onChange({ target: { value: "Charlie" } }),
 );
@@ -381,6 +402,42 @@ assert.equal(
   JSON.parse(store.get("launch7-records-1")).ownershipDocuments[0].name,
   "Cap table",
   "Finance ownership documents should persist per venture",
+);
+await act(async () =>
+  renderer.root
+    .findAllByType("button")
+    .find((node) => text(node) === "Edit")
+    .props.onClick(),
+);
+await act(async () =>
+  renderer.root
+    .findAllByType("input")
+    .find((node) => node.props.placeholder === "Amount")
+    .props.onChange({ target: { value: "250" } }),
+);
+await act(async () => button(renderer, "Update expense").props.onClick());
+await act(async () =>
+  renderer.root
+    .findAllByType("input")
+    .find((node) => node.props.placeholder === "e.g. 50000")
+    .props.onChange({ target: { value: "1,000" } }),
+);
+assert.equal(
+  JSON.parse(store.get("launch7-draft-1-finance-0")).budgetAmount,
+  "1000",
+  "comma-formatted Finance budgets should normalize instead of becoming zero",
+);
+await act(async () => button(renderer, "Funding").props.onClick());
+assert.ok(
+  text(renderer.root).includes("750"),
+  "Finance calculations should use the merged budget across stages",
+);
+await act(async () => button(renderer, "Budget").props.onClick());
+await act(async () =>
+  renderer.root
+    .findAllByType("input")
+    .find((node) => node.props.placeholder === "e.g. 50000")
+    .props.onChange({ target: { value: "50000" } }),
 );
 await act(async () => button(renderer, "Funding").props.onClick());
 assert.ok(
@@ -1338,6 +1395,11 @@ const firstProductReference = renderer.root
   );
 await act(async () =>
   firstProductReference.props.onChange({ target: { value: "REF-1" } }),
+);
+await act(async () =>
+  firstProductEvidence.props.onChange({
+    target: { value: "Founder reviewed" },
+  }),
 );
 await act(async () =>
   renderer.root
