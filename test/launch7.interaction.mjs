@@ -47,9 +47,17 @@ assert.equal(button(renderer, 'Generate local invitation link').props.disabled, 
 await act(async () => email.props.onChange({ target: { value: 'member@example.com' } }));
 assert.equal(button(renderer, 'Generate local invitation link').props.disabled, false, 'valid emails should enable local invitation generation');
 await act(async () => button(renderer, 'Generate local invitation link').props.onClick());
-assert.ok([...store.entries()].some(([key, value]) => key.startsWith('launch7-invite-email-') && /member@example\.com/.test(value)));
+const generatedInviteToken = [...store.keys()].find((key) => key.startsWith('launch7-invite-email-local-'))?.replace('launch7-invite-email-', '');
+assert.ok(generatedInviteToken, 'generated invitation should have a concrete local token');
 assert.ok(renderer.root.findAll((node) => typeof node.children?.[0] === 'string' && node.children[0].includes('/launch-7/onboarding?invitationToken=')).length, 'generated links should route to onboarding');
+const signature = renderer.root.findAllByType('input').find((node) => node.props.type !== 'email' && node.props.type !== 'checkbox' && node.props.type !== 'file');
+await act(async () => signature.props.onChange({ target: { value: 'First Invitation Member' } }));
+const signatureForm = renderer.root.findAllByType('form')[0];
+await act(async () => signatureForm.props.onSubmit({ preventDefault() {} }));
+assert.equal(store.get(`launch7-signed-name-${generatedInviteToken}`), 'First Invitation Member', 'signature should be stored against the generated invitation');
+assert.notEqual(store.get('launch7-signed-name-preview'), 'First Invitation Member', 'signature must not fall back to preview token');
 
+store.delete('launch7-active-invite-token');
 global.window.location.pathname = '/launch-7/onboarding';
 global.window.location.search = '?invitationToken=local-test';
 store.set('launch7-signed-name-local-other', 'Different invitation member');
