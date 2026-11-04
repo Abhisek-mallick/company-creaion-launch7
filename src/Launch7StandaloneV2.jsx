@@ -132,22 +132,23 @@ export default function Launch7StandaloneV2() {
     setNotice(msg);
     setTimeout(() => setNotice(""), 1800);
   };
-  const task = (key, id, patch) =>
-    save(
-      rows.map((x, i) =>
-        i === selected
-          ? {
-              ...x,
-              tasks: {
-                ...x.tasks,
-                [key]: x.tasks[key].map((t) =>
-                  t.id === id ? { ...t, ...patch } : t,
-                ),
-              },
-            }
-          : x,
-      ),
+  const task = (key, id, patch) => {
+    const next = rows.map((x, i) =>
+      i === selected
+        ? {
+            ...x,
+            tasks: {
+              ...x.tasks,
+              [key]: x.tasks[key].map((t) =>
+                t.id === id ? { ...t, ...patch } : t,
+              ),
+            },
+          }
+        : x,
     );
+    localStorage.removeItem(`launch7-approval-${v.id}`);
+    save(next);
+  };
   const go = (s, st = "overview") => {
     setScreen(s);
     setStep(st);
@@ -769,9 +770,12 @@ function Onboarding() {
   const token =
     new URLSearchParams(window.location.search).get("invitationToken") ||
     "preview";
+  const hasInvitationToken = window.location.search.includes("invitationToken");
   const emailKey = `launch7-invite-email-${token}`;
   const [activeInvite, setActiveInvite] = useState(
-    localStorage.getItem("launch7-active-invite-token") || token,
+    hasInvitationToken
+      ? token
+      : localStorage.getItem("launch7-active-invite-token") || token,
   );
   const nameKey = `launch7-signed-name-${activeInvite}`;
   const [email, setEmail] = useState(localStorage.getItem(emailKey) || "");
