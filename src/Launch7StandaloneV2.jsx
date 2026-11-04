@@ -599,13 +599,20 @@ function Wizard({ v, k, tasks, onTask }) {
   const readStageDraft = (index) => {
     if (index !== tabs.length - 1)
       return readDraft(`launch7-draft-${v.id}-${k}-${index}`);
-    return tabs.reduce(
-      (merged, _, stageIndex) => ({
-        ...merged,
-        ...readDraft(`launch7-draft-${v.id}-${k}-${stageIndex}`),
-      }),
-      {},
-    );
+    const merged = {};
+    const stamps = {};
+    tabs.forEach((_, stageIndex) => {
+      const draft = readDraft(`launch7-draft-${v.id}-${k}-${stageIndex}`);
+      Object.entries(draft).forEach(([field, value]) => {
+        if (field === "__fieldUpdated") return;
+        const stamp = draft.__fieldUpdated?.[field] || stageIndex;
+        if (stamps[field] === undefined || stamp >= stamps[field]) {
+          merged[field] = value;
+          stamps[field] = stamp;
+        }
+      });
+    });
+    return { ...merged, __fieldUpdated: stamps };
   };
   const [data, setData] = useState(() => {
     return readStageDraft(tab);
@@ -613,9 +620,14 @@ function Wizard({ v, k, tasks, onTask }) {
   const [domainError, setDomainError] = useState("");
   useEffect(() => setData(readStageDraft(tab)), [draftKey]);
   const update = (key, val) => {
-    const next = { ...data, [key]: val };
+    const next = {
+      ...data,
+      [key]: val,
+      __fieldUpdated: { ...(data.__fieldUpdated || {}), [key]: Date.now() },
+    };
     setData(next);
     localStorage.setItem(draftKey, JSON.stringify(next));
+    localStorage.removeItem(`launch7-approval-${v.id}`);
   };
   const save = () => {
     const required =
@@ -656,7 +668,7 @@ function Wizard({ v, k, tasks, onTask }) {
                 [k]: row.tasks[k].map((x) => ({
                   ...x,
                   status: "Done",
-                  note: x.note || note,
+                  note,
                 })),
               },
             }

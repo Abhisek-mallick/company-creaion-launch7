@@ -113,26 +113,35 @@ assert.ok(
   ).length,
   "AI mode should show a simulated draft review outcome",
 );
-const firstProductInput = renderer.root.findAllByType("input")[0];
+const firstProductInput = renderer.root
+  .findAllByType("input")
+  .find((node) => node.props.placeholder === "What is in the first release?");
 await act(async () =>
   firstProductInput.props.onChange({
     target: { value: "Validated MVP scope" },
   }),
 );
 await act(async () => button(renderer, "Save & continue").props.onClick());
-const deliveryInput = renderer.root.findAllByType("input")[0];
+const deliveryInput = renderer.root
+  .findAllByType("input")
+  .find((node) => node.props.placeholder === "Target milestone");
 await act(async () =>
   deliveryInput.props.onChange({ target: { value: "Delivery milestone B" } }),
 );
 await act(async () => button(renderer, "Scope").props.onClick());
 assert.equal(
-  renderer.root.findAllByType("input")[0].props.value,
+  renderer.root
+    .findAllByType("input")
+    .find((node) => node.props.placeholder === "What is in the first release?")
+    .props.value,
   "Validated MVP scope",
   "returning to Scope should restore its own draft",
 );
 await act(async () => button(renderer, "Delivery").props.onClick());
 assert.equal(
-  renderer.root.findAllByType("input")[0].props.value,
+  renderer.root
+    .findAllByType("input")
+    .find((node) => node.props.placeholder === "Target milestone").props.value,
   "Delivery milestone B",
   "returning to Delivery should restore its own draft",
 );
@@ -140,7 +149,10 @@ await act(async () => button(renderer, "Ventures").props.onClick());
 await act(async () => button(renderer, "Open launch plan").props.onClick());
 await act(async () => button(renderer, "Product & technology").props.onClick());
 assert.equal(
-  renderer.root.findAllByType("input")[0].props.value,
+  renderer.root
+    .findAllByType("input")
+    .find((node) => node.props.placeholder === "What is in the first release?")
+    .props.value,
   "Validated MVP scope",
   "product drafts should restore after navigation",
 );
@@ -257,6 +269,39 @@ assert.ok(
     .some((node) => node.props.value === "70%"),
   "Finance review should summarize the saved ownership stage",
 );
+await act(async () => button(renderer, "Save review").props.onClick());
+assert.match(
+  JSON.parse(store.get("launch7-v2"))[0].tasks.finance[0].note,
+  /50000/,
+  "Finance review should write the latest domain snapshot to task evidence",
+);
+const reviewBudget = renderer.root
+  .findAllByType("input")
+  .find((node) => node.props.value === "50000");
+await act(async () =>
+  reviewBudget.props.onChange({ target: { value: "75000" } }),
+);
+await act(async () => button(renderer, "Save review").props.onClick());
+assert.match(
+  JSON.parse(store.get("launch7-v2"))[0].tasks.finance[0].note,
+  /75000/,
+  "editing Finance review should update task evidence instead of preserving stale notes",
+);
+await act(async () => button(renderer, "Budget").props.onClick());
+const newerBudget = renderer.root.findAllByType("input")[0];
+await act(async () =>
+  newerBudget.props.onChange({ target: { value: "90000" } }),
+);
+const latestFinanceReview = renderer.root
+  .findAll((node) => node.type === "button" && text(node).includes("Review"))
+  .at(-1);
+await act(async () => latestFinanceReview.props.onClick());
+assert.ok(
+  renderer.root
+    .findAllByType("input")
+    .some((node) => node.props.value === "90000"),
+  "newer Budget edits should win over an older Review snapshot",
+);
 await act(async () => button(renderer, "Legal & formation").props.onClick());
 assert.ok(
   renderer.root.findAll(
@@ -317,13 +362,18 @@ await act(async () => {
 await act(async () => button(renderer, "Open launch plan").props.onClick());
 await act(async () => button(renderer, "Product & technology").props.onClick());
 assert.equal(
-  renderer.root.findAllByType("input")[0].props.value,
+  renderer.root
+    .findAllByType("input")
+    .find((node) => node.props.placeholder === "What is in the first release?")
+    .props.value,
   "Validated MVP scope",
   "Scope draft should survive reload",
 );
 await act(async () => button(renderer, "Delivery").props.onClick());
 assert.equal(
-  renderer.root.findAllByType("input")[0].props.value,
+  renderer.root
+    .findAllByType("input")
+    .find((node) => node.props.placeholder === "Target milestone").props.value,
   "Delivery milestone B",
   "Delivery draft should survive reload",
 );
