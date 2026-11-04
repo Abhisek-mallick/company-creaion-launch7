@@ -150,6 +150,53 @@ assert.equal(
   100,
   "Product progress should be 100% after all stages",
 );
+await act(async () => button(renderer, "Ventures").props.onClick());
+await act(async () => button(renderer, "Open launch plan").props.onClick());
+await act(async () => button(renderer, "Finance & ownership").props.onClick());
+assert.ok(
+  renderer.root.findAll(
+    (node) =>
+      node.type === "h3" &&
+      text(node).includes("Finance budget, funding and ownership"),
+  ).length,
+  "Finance should expose domain-specific controls",
+);
+const budgetAmount = renderer.root.findAllByType("input")[0];
+await act(async () =>
+  budgetAmount.props.onChange({ target: { value: "50000" } }),
+);
+assert.equal(
+  JSON.parse(store.get("launch7-draft-1-finance-0")).budgetAmount,
+  "50000",
+  "Finance budget should persist in local stage state",
+);
+await act(async () => button(renderer, "Funding").props.onClick());
+assert.ok(
+  renderer.root.findAll(
+    (node) =>
+      node.type === "input" &&
+      node.props.placeholder === "Bootstrapped, grant, investor",
+  ).length,
+  "Finance funding stage should expose funding source",
+);
+await act(async () => button(renderer, "Legal & formation").props.onClick());
+assert.ok(
+  renderer.root.findAll(
+    (node) =>
+      node.type === "h3" &&
+      text(node).includes("Legal formation and filing evidence"),
+  ).length,
+  "Legal should expose filing controls",
+);
+await act(async () => button(renderer, "People & operations").props.onClick());
+assert.ok(
+  renderer.root.findAll(
+    (node) =>
+      node.type === "h3" &&
+      text(node).includes("People roles, onboarding and operations"),
+  ).length,
+  "People should expose onboarding controls",
+);
 await act(async () => {
   renderer = create(React.createElement(App));
 });

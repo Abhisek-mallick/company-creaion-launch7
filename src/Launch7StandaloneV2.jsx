@@ -529,6 +529,7 @@ function Wizard({ v, k, tasks, onTask }) {
   const [data, setData] = useState(() => {
     return readDraft(draftKey);
   });
+  const [domainError, setDomainError] = useState("");
   useEffect(() => setData(readDraft(draftKey)), [draftKey]);
   const update = (key, val) => {
     const next = { ...data, [key]: val };
@@ -536,6 +537,24 @@ function Wizard({ v, k, tasks, onTask }) {
     localStorage.setItem(draftKey, JSON.stringify(next));
   };
   const save = () => {
+    const required =
+      k === "finance"
+        ? [data.budgetAmount, data.fundingSource, data.ownershipPercent]
+        : k === "legal"
+          ? [data.entityType, data.jurisdiction, data.filingRoute]
+          : k === "people"
+            ? [data.roleTitle, data.personName, data.onboardingPlan]
+            : [];
+    if (
+      tab === tabs.length - 1 &&
+      required.some((value) => !String(value || "").trim())
+    ) {
+      setDomainError(
+        "Complete the required domain fields before saving this review.",
+      );
+      return;
+    }
+    setDomainError("");
     const t = tasks[Math.min(tab, tasks.length - 1)];
     const note = JSON.stringify({
       a: data.a,
@@ -587,6 +606,11 @@ function Wizard({ v, k, tasks, onTask }) {
         ))}
       </div>
       <DomainControls k={k} data={data} update={update} />
+      {domainError && (
+        <p className="field-error" role="alert">
+          {domainError}
+        </p>
+      )}
       <div className="guided-form">
         <div className="two-col">
           <Field label={fields[0]}>
@@ -665,6 +689,9 @@ function Wizard({ v, k, tasks, onTask }) {
   );
 }
 function DomainControls({ k, data, update }) {
+  if (["finance", "legal", "people"].includes(k)) {
+    return <OperationsControls k={k} data={data} update={update} />;
+  }
   if (k !== "brand" && k !== "product") return null;
   const brand = k === "brand";
   const method = data.method || "ai";
@@ -807,6 +834,122 @@ function DomainControls({ k, data, update }) {
           </span>
         </div>
       )}
+    </section>
+  );
+}
+function OperationsControls({ k, data, update }) {
+  const field = (label, key, placeholder, type = "text") => (
+    <Field label={label}>
+      <input
+        type={type}
+        value={data[key] || ""}
+        onChange={(e) => update(key, e.target.value)}
+        placeholder={placeholder}
+      />
+    </Field>
+  );
+  if (k === "finance") {
+    return (
+      <section className="domain-controls" aria-label="Finance demo actions">
+        <span className="chip">FRONTEND DEMO</span>
+        <h3>Finance budget, funding and ownership</h3>
+        <p>
+          Record planning assumptions locally. No money movement, cap-table sync
+          or banking connection is performed.
+        </p>
+        <div className="two-col">
+          {field("Budget amount", "budgetAmount", "e.g. 50000", "number")}
+          {field(
+            "Funding source",
+            "fundingSource",
+            "Bootstrapped, grant, investor",
+          )}
+          {field("Ownership percentage", "ownershipPercent", "e.g. 70%")}
+          {field("Runway target", "runway", "Months of runway")}
+        </div>
+        <label className="field">
+          <span>Funding notes</span>
+          <textarea
+            value={data.fundingNotes || ""}
+            onChange={(e) => update("fundingNotes", e.target.value)}
+            placeholder="Funding assumptions or evidence reference"
+          />
+        </label>
+      </section>
+    );
+  }
+  if (k === "legal") {
+    return (
+      <section className="domain-controls" aria-label="Legal demo actions">
+        <span className="chip">FRONTEND DEMO</span>
+        <h3>Legal formation and filing evidence</h3>
+        <p>
+          Prepare a filing route and evidence checklist locally. This does not
+          submit a government filing.
+        </p>
+        <div className="two-col">
+          {field(
+            "Entity type",
+            "entityType",
+            "LLC, corporation, sole proprietor",
+          )}
+          {field("Jurisdiction", "jurisdiction", "State or country")}
+          {field(
+            "Filing route",
+            "filingRoute",
+            "Online portal, attorney, registry",
+          )}
+          {field(
+            "Filing reference",
+            "filingReference",
+            "Reference or receipt ID",
+          )}
+        </div>
+        <label className="field">
+          <span>Status and evidence</span>
+          <textarea
+            value={data.legalEvidence || ""}
+            onChange={(e) => update("legalEvidence", e.target.value)}
+            placeholder="Status, dates, document checklist and evidence notes"
+          />
+        </label>
+      </section>
+    );
+  }
+  return (
+    <section className="domain-controls" aria-label="People demo actions">
+      <span className="chip">FRONTEND DEMO</span>
+      <h3>People roles, onboarding and operations</h3>
+      <p>
+        Capture an onboarding plan locally. Invitations and signatures still use
+        the demo onboarding flow.
+      </p>
+      <div className="two-col">
+        {field("Role title", "roleTitle", "e.g. Founding engineer")}
+        {field("Person name", "personName", "Name")}
+        {field("Start date", "startDate", "Date", "date")}
+        {field("Manager / owner", "manager", "Name")}
+      </div>
+      <label className="field">
+        <span>Onboarding plan</span>
+        <textarea
+          value={data.onboardingPlan || ""}
+          onChange={(e) => update("onboardingPlan", e.target.value)}
+          placeholder="Access, responsibilities, first-week checklist"
+        />
+      </label>
+      <label className="field">
+        <span>Operating cadence</span>
+        <select
+          value={data.cadence || "Weekly"}
+          onChange={(e) => update("cadence", e.target.value)}
+        >
+          <option>Daily</option>
+          <option>Weekly</option>
+          <option>Biweekly</option>
+          <option>Monthly</option>
+        </select>
+      </label>
     </section>
   );
 }
