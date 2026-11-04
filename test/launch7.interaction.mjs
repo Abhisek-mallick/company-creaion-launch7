@@ -47,6 +47,11 @@ assert.ok(
   "dashboard should expose launch plan navigation",
 );
 assert.ok(
+  text(renderer.root).includes("Average task completion") &&
+    text(renderer.root).includes("Launch ready"),
+  "dashboard should separate task completion from final launch readiness",
+);
+assert.ok(
   renderer.root.findAll(
     (node) =>
       node.type === "h2" &&
@@ -381,6 +386,18 @@ await act(async () =>
     .find((node) => node.props.placeholder === "Amount")
     .props.onChange({ target: { value: "1,000" } }),
 );
+await act(async () =>
+  renderer.root
+    .findAllByType("select")
+    .find((node) => node.props["aria-label"] === "expenses status")
+    .props.onChange({ target: { value: "Committed" } }),
+);
+await act(async () =>
+  renderer.root
+    .findAllByType("select")
+    .find((node) => node.props["aria-label"] === "expenses frequency")
+    .props.onChange({ target: { value: "Monthly" } }),
+);
 await act(async () => button(renderer, "Add expense").props.onClick());
 assert.ok(
   text(renderer.root).includes("1,250"),
@@ -395,6 +412,16 @@ assert.ok(
   text(renderer.root).includes("Registered spend") &&
     text(renderer.root).includes("1,250"),
   "Finance should show calculated registered spend",
+);
+assert.equal(
+  JSON.parse(store.get("launch7-records-1")).expenses[1].frequency,
+  "Monthly",
+  "Finance should persist recurring expense frequency",
+);
+assert.equal(
+  JSON.parse(store.get("launch7-records-1")).expenses[1].status,
+  "Committed",
+  "Finance should persist expense status",
 );
 const ownershipDocName = renderer.root
   .findAllByType("input")
@@ -716,6 +743,61 @@ assert.equal(
   JSON.parse(store.get("launch7-records-1")).decisions[0].history.length,
   1,
   "Launch decisions should retain the prior snapshot",
+);
+for (let edit = 0; edit < 14; edit += 1) {
+  await act(async () =>
+    renderer.root
+      .findAllByType("button")
+      .find((node) => node.props["aria-label"]?.startsWith("Edit decisions"))
+      .props.onClick(),
+  );
+  await act(async () =>
+    renderer.root
+      .findAllByType("input")
+      .find((node) => node.props.placeholder === "Decision scope")
+      .props.onChange({ target: { value: `Scope ${edit}` } }),
+  );
+  await act(async () => button(renderer, "Update decision").props.onClick());
+}
+const versionedDecision = JSON.parse(store.get("launch7-records-1")).decisions[0];
+assert.equal(
+  versionedDecision.history.length,
+  10,
+  "decision history should be bounded",
+);
+assert.equal(
+  versionedDecision.history.some((snapshot) => snapshot.history),
+  false,
+  "decision history snapshots should not recursively contain history",
+);
+const beforeQuotaFailure = store.get("launch7-records-1");
+const originalSetItem = global.localStorage.setItem;
+global.localStorage.setItem = (key, value) => {
+  if (key === "launch7-records-1") throw new Error("QuotaExceededError");
+  return originalSetItem(key, value);
+};
+await act(async () =>
+  renderer.root
+    .findAllByType("button")
+    .find((node) => node.props["aria-label"]?.startsWith("Edit decisions"))
+    .props.onClick(),
+);
+await act(async () =>
+  renderer.root
+    .findAllByType("input")
+    .find((node) => node.props.placeholder === "Decision scope")
+    .props.onChange({ target: { value: "Should not save" } }),
+);
+await act(async () => button(renderer, "Update decision").props.onClick());
+global.localStorage.setItem = originalSetItem;
+assert.equal(
+  store.get("launch7-records-1"),
+  beforeQuotaFailure,
+  "quota failures should preserve the previous saved record",
+);
+assert.ok(
+  text(renderer.root).includes("could not save the record"),
+  "quota failures should be visible in the UI",
 );
 await act(async () =>
   renderer.root

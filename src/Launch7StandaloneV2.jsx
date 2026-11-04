@@ -173,11 +173,35 @@ const storedDomainData = (ventureId, key) => {
     }
   }, {});
 };
+const snapshotRecord = (record) => {
+  if (!record || typeof record !== "object") return {};
+  const { history, ...snapshot } = record;
+  return snapshot;
+};
+const flattenHistory = (history = []) =>
+  history.flatMap((entry) => [
+    ...(Array.isArray(entry?.history) ? flattenHistory(entry.history) : []),
+    snapshotRecord(entry),
+  ]);
+const normalizeDecision = (record) => {
+  if (!record || typeof record !== "object") return record;
+  const history = flattenHistory(record.history || []).slice(-10);
+  return {
+    ...snapshotRecord(record),
+    version: Math.max(Number(record.version) || 1, history.length + 1),
+    history,
+  };
+};
+const normalizeRecords = (records) => ({
+  ...(records || {}),
+  decisions: (records?.decisions || []).map(normalizeDecision),
+});
 const storedRecords = (ventureId) => {
   try {
-    return (
+    const records = normalizeRecords(
       JSON.parse(localStorage.getItem(`launch7-records-${ventureId}`)) || {}
     );
+    return records;
   } catch {
     return {};
   }
@@ -513,13 +537,14 @@ function Dashboard({ rows, open, newV, selected }) {
           ["Active plans", rows.filter((x) => x.status !== "Launched").length],
           ["Launched", rows.filter((x) => x.status === "Launched").length],
           [
-            "Average readiness",
+            "Average task completion",
             (rows.length
               ? Math.round(
                   rows.reduce((n, x) => n + progress(x), 0) / rows.length,
                 )
               : 0) + "%",
           ],
+          ["Launch ready", rows.filter((x) => launchReady(x)).length],
         ].map((x) => (
           <div className="metric" key={x[0]}>
             <div className="metric-icon">
@@ -1341,18 +1366,37 @@ function OperationsControls({ k, ventureId, data, update }) {
   const recordStorageKey = `launch7-records-${ventureId}`;
   const [records, setRecords] = useState(() => {
     try {
-      return JSON.parse(localStorage.getItem(recordStorageKey)) || {};
+      const normalized = normalizeRecords(
+        JSON.parse(localStorage.getItem(recordStorageKey)) || {},
+      );
+      try {
+        localStorage.setItem(recordStorageKey, JSON.stringify(normalized));
+      } catch {
+        // Keep the readable normalized data in memory if migration cannot persist.
+      }
+      return normalized;
     } catch {
       return {};
     }
   });
   const [drafts, setDrafts] = useState({});
   const [editing, setEditing] = useState({});
+  const [recordError, setRecordError] = useState("");
   const saveRecords = (next) => {
-    setRecords(next);
-    localStorage.setItem(recordStorageKey, JSON.stringify(next));
-    localStorage.removeItem(`launch7-approval-${ventureId}`);
-    localStorage.setItem(`launch7-approval-invalidated-${ventureId}`, "1");
+    try {
+      const normalized = normalizeRecords(next);
+      localStorage.setItem(recordStorageKey, JSON.stringify(normalized));
+      setRecords(normalized);
+      localStorage.removeItem(`launch7-approval-${ventureId}`);
+      localStorage.setItem(`launch7-approval-invalidated-${ventureId}`, "1");
+      setRecordError("");
+      return true;
+    } catch {
+      setRecordError(
+        "This local demo could not save the record. Your previous saved data is unchanged; reduce the history or browser storage size and try again.",
+      );
+      return false;
+    }
   };
   const setDraft = (type, field, value) =>
     setDrafts((current) => ({
@@ -1371,12 +1415,17 @@ function OperationsControls({ k, ventureId, data, update }) {
       ...(type === "decisions"
         ? {
             version: (previous?.version || 0) + 1,
-            history: previous
-              ? [
-                  ...(previous.history || []),
-                  { ...previous, archivedAt: new Date().toISOString() },
-                ]
-              : [],
+            history: [
+              ...(previous?.history || []),
+              previous
+                ? {
+                    ...snapshotRecord(previous),
+                    archivedAt: new Date().toISOString(),
+                  }
+                : null,
+            ]
+              .filter(Boolean)
+              .slice(-10),
             updatedAt: new Date().toISOString(),
           }
         : {}),
@@ -1385,9 +1434,10 @@ function OperationsControls({ k, ventureId, data, update }) {
       ...records,
       [type]: [...list.filter((item) => item.id !== id), record],
     };
-    saveRecords(next);
-    setDrafts((current) => ({ ...current, [type]: {} }));
-    setEditing((current) => ({ ...current, [type]: "" }));
+    if (saveRecords(next)) {
+      setDrafts((current) => ({ ...current, [type]: {} }));
+      setEditing((current) => ({ ...current, [type]: "" }));
+    }
   };
   const editRecord = (type, item) => {
     setDrafts((current) => ({ ...current, [type]: { ...item } }));
@@ -1418,9 +1468,11 @@ function OperationsControls({ k, ventureId, data, update }) {
     </select>
   );
   const recordList = (type, fields) => (
-    <div className="record-list">
-      {(records[type] || []).map((item) => (
-        <div className="record-row" key={item.id}>
+    <>
+      {recordError && <p className="error-note">{recordError}</p>}
+      <div className="record-list">
+        {(records[type] || []).map((item) => (
+          <div className="record-row" key={item.id}>
           <span>
             <b>{item[fields[0]]}</b>
             <small>
@@ -1431,10 +1483,25 @@ function OperationsControls({ k, ventureId, data, update }) {
                 .join(" · ")}
             </small>
             {item.version && (
+              <>
               <small>
                 Version {item.version} · {item.history?.length || 0} prior
                 snapshot(s)
               </small>
+              {item.history?.length > 0 && (
+                <details className="record-history">
+                  <summary>View current / stale snapshots</summary>
+                  <small>
+                    Current: {item.scope || item.decision || "Updated decision"}
+                  </small>
+                  {item.history.map((snapshot, index) => (
+                    <small key={`${item.id}-history-${index}`}>
+                      Stale v{snapshot.version || index + 1}: {snapshot.scope || snapshot.decision || "Prior decision"}
+                    </small>
+                  ))}
+                </details>
+              )}
+              </>
             )}
           </span>
           <button
@@ -1451,9 +1518,10 @@ function OperationsControls({ k, ventureId, data, update }) {
           >
             Remove
           </button>
-        </div>
-      ))}
-    </div>
+          </div>
+        ))}
+      </div>
+    </>
   );
   const financeData =
     k === "finance" ? storedDomainData(ventureId, "finance") : data;
@@ -1473,12 +1541,18 @@ function OperationsControls({ k, ventureId, data, update }) {
   const plannedSpend = expenseByStatus("Planned");
   const committedSpend = expenseByStatus("Committed");
   const paidSpend = expenseByStatus("Paid");
+  const monthlyRunRate = (records.expenses || []).reduce((total, item) => {
+    const amount = Number(String(item.amount || "").replace(/,/g, "")) || 0;
+    if (item.frequency === "Annual") return total + amount / 12;
+    if (item.frequency === "Monthly") return total + amount;
+    return total;
+  }, 0);
   const budgetTotal =
     Number(String(financeData.budgetAmount || "").replace(/,/g, "")) || 0;
   const budgetRemaining = Math.max(budgetTotal - expenseTotal, 0);
-  const runwayEstimate = expenseTotal
-    ? `${(budgetTotal / expenseTotal).toFixed(1)} periods`
-    : "Add expenses";
+  const runwayEstimate = monthlyRunRate
+    ? `${(budgetTotal / monthlyRunRate).toFixed(1)} months`
+    : "Add monthly/annual costs";
   const field = (label, key, placeholder, type = "text") => (
     <Field label={label}>
       <input
@@ -1507,19 +1581,19 @@ function OperationsControls({ k, ventureId, data, update }) {
         </p>
         <div className="record-metrics">
           <span>
-            <small>Registered spend</small>
+            <small>Registered spend (one period)</small>
             <b>{expenseTotal.toLocaleString()}</b>
           </span>
           <span>
-            <small>Budget remaining</small>
+            <small>Budget after records</small>
             <b>{budgetRemaining.toLocaleString()}</b>
           </span>
           <span>
-            <small>Runway estimate</small>
+            <small>Runway estimate (months)</small>
             <b>{runwayEstimate}</b>
           </span>
           <span>
-            <small>Planned / committed / paid</small>
+            <small>Planned / committed / paid (recorded)</small>
             <b>
               {plannedSpend.toLocaleString()} /{" "}
               {committedSpend.toLocaleString()} / {paidSpend.toLocaleString()}

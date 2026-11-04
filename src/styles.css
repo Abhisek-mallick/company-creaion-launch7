@@ -1003,6 +1003,15 @@ button {
   color: var(--ink);
   font-size: 15px;
 }
+.error-note {
+  margin: 10px 0;
+  padding: 10px 12px;
+  border: 1px solid #f0b7b7;
+  border-radius: 7px;
+  background: #fff5f5;
+  color: #a33a3a;
+  font-size: 12px;
+}
 .record-heading {
   display: flex;
   justify-content: space-between;
