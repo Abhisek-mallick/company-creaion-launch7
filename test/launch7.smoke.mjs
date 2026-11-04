@@ -26,4 +26,6 @@ assert.match(ui, /localStorage\.setItem\(`launch7-invite-email-\$\{inviteToken\}
 assert.match(ui, /localStorage\.setItem\(nameKey/, 'signature should persist locally');
 assert.match(ui, /localStorage\.setItem\(approvalKey,'Submitted'\)/, 'approval should persist as explicit local state');
 assert.match(ui, /const tabs=WS\[k\]\[1\]/, 'wizard should use per-workstream stages');
+assert.match(ui, /taskTitles=\['Define the decision','Add evidence or reference','Review and confirm','Validate saved evidence','Approve stage outcome'\]/, 'Product should have five persisted completion records');
+assert.match(ui, /saved\.match\(new RegExp\(fields\[0\]/, 'wizard should restore saved stage fields');
 console.log('Launch7 persistence and navigation coverage passed');

@@ -12,7 +12,7 @@ global.window = { location: { pathname: '/', search: '' }, alert() {}, setTimeou
 const testBundle = join(process.cwd(), 'test', '.launch7-interaction-test.mjs');
 await build({ entryPoints: ['src/Launch7StandaloneV2.jsx'], bundle: true, format: 'esm', platform: 'node', external: ['react', 'lucide-react'], outfile: testBundle, loader: { '.jsx': 'jsx' } });
 const { default: App } = await import(pathToFileURL(testBundle).href);
-const text = (node) => node?.children?.filter((child) => typeof child === 'string').join('') || '';
+const text = (node) => node?.children?.map((child) => typeof child === 'string' ? child : text(child)).join('') || '';
 const button = (root, label) => root.root.findAll((node) => node.type === 'button' && text(node).includes(label))[0];
 
 let renderer;
@@ -21,6 +21,19 @@ assert.ok(button(renderer, 'Open launch plan'), 'dashboard should expose launch 
 await act(async () => button(renderer, 'Open launch plan').props.onClick());
 assert.ok(button(renderer, 'Review launch'), 'setup should expose final review navigation');
 assert.ok(button(renderer, 'Team onboarding'), 'team onboarding should remain accessible from navigation');
+
+await act(async () => button(renderer, 'Product & technology').props.onClick());
+const firstProductInput = renderer.root.findAllByType('input')[0];
+await act(async () => firstProductInput.props.onChange({ target: { value: 'Validated MVP scope' } }));
+await act(async () => button(renderer, 'Save & continue').props.onClick());
+await act(async () => button(renderer, 'Ventures').props.onClick());
+await act(async () => button(renderer, 'Open launch plan').props.onClick());
+await act(async () => button(renderer, 'Product & technology').props.onClick());
+assert.equal(renderer.root.findAllByType('input')[0].props.value, 'Validated MVP scope', 'product drafts should restore after navigation');
+for (let i = 0; i < 5; i += 1) await act(async () => button(renderer, i === 4 ? 'Save review' : 'Save & continue').props.onClick());
+const savedVenture = JSON.parse(store.get('launch7-v2'))[0];
+assert.equal(savedVenture.tasks.product.length, 5, 'Product should have five completion records');
+assert.ok(savedVenture.tasks.product.some((item) => item.status === 'Done'), 'Product stage completion should persist locally');
 
 await act(async () => button(renderer, 'Team onboarding').props.onClick());
 assert.ok(button(renderer, 'Generate local invitation link'), 'onboarding should expose invitation generation');
