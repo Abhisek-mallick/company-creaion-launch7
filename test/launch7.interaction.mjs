@@ -27,10 +27,12 @@ assert.ok(button(renderer, 'Generate local invitation link'), 'onboarding should
 const email = renderer.root.findAllByType('input').find((node) => node.props.type === 'email');
 await act(async () => email.props.onChange({ target: { value: 'member@example.com' } }));
 await act(async () => button(renderer, 'Generate local invitation link').props.onClick());
-assert.match(store.get('launch7-invite-email'), /member@example\.com/);
+assert.ok([...store.entries()].some(([key, value]) => key.startsWith('launch7-invite-email-') && /member@example\.com/.test(value)));
+assert.ok(renderer.root.findAll((node) => typeof node.children?.[0] === 'string' && node.children[0].includes('/launch-7/onboarding?invitationToken=')).length, 'generated links should route to onboarding');
 
 global.window.location.pathname = '/launch-7/onboarding';
 global.window.location.search = '?invitationToken=local-test';
+store.set('launch7-signed-name-local-other', 'Different invitation member');
 await act(async () => { renderer = create(React.createElement(App)); });
 assert.ok(renderer.root.findAll((node) => node.type === 'h1' && text(node).includes('Invite and onboard')).length, 'invitation token should open onboarding flow');
 console.log('Launch7 component interaction tests passed');
