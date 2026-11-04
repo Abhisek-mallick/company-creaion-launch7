@@ -115,6 +115,33 @@ const progress = (v) => {
     ? Math.round((a.filter((x) => x.status === "Done").length / a.length) * 100)
     : 0;
 };
+const domainRequirement = {
+  finance: ["budgetAmount", "fundingSource", "ownershipPercent"],
+  legal: ["entityType", "jurisdiction", "filingRoute"],
+  people: ["roleTitle", "personName", "onboardingPlan"],
+  apps: ["toolInventory", "permissionOwner", "testEvidence"],
+  partners: ["partnerName", "commitmentType", "partnerReference"],
+  launch: ["launchDate", "launchOwner", "recoveryPlan"],
+};
+const storedDomainData = (ventureId, key) => {
+  const tabs = WS[key]?.[1] || [];
+  return tabs.reduce((merged, _, index) => {
+    try {
+      return {
+        ...merged,
+        ...(JSON.parse(
+          localStorage.getItem(`launch7-draft-${ventureId}-${key}-${index}`),
+        ) || {}),
+      };
+    } catch {
+      return merged;
+    }
+  }, {});
+};
+const domainReady = (ventureId, key) =>
+  (domainRequirement[key] || []).every((field) =>
+    String(storedDomainData(ventureId, key)[field] || "").trim(),
+  );
 export default function Launch7StandaloneV2() {
   const [rows, setRows] = useState(initial);
   const [selected, setSelected] = useState(0);
@@ -133,6 +160,13 @@ export default function Launch7StandaloneV2() {
     setTimeout(() => setNotice(""), 1800);
   };
   const task = (key, id, patch) => {
+    if (patch.status === "Done" && !domainReady(v.id, key)) {
+      setNotice(
+        "Complete the required domain fields before checking this task.",
+      );
+      setTimeout(() => setNotice(""), 2200);
+      return;
+    }
     const next = rows.map((x, i) =>
       i === selected
         ? {
@@ -337,6 +371,42 @@ function Dashboard({ rows, open, newV }) {
             </button>
           </article>
         ))}
+      </div>
+      {rows[0] && <LaunchSnapshot venture={rows[0]} />}
+    </section>
+  );
+}
+function LaunchSnapshot({ venture }) {
+  const approval =
+    localStorage.getItem(`launch7-approval-${venture.id}`) || "Draft";
+  return (
+    <section className="launch-snapshot panel">
+      <div className="section-head">
+        <div>
+          <p className="eyebrow">CONSOLIDATED LAUNCH SNAPSHOT</p>
+          <h2>Records, evidence and approval</h2>
+          <p className="muted">
+            Local demo summary for {venture.name}; no backend records are
+            queried.
+          </p>
+        </div>
+        <span className="chip">{approval}</span>
+      </div>
+      <div className="snapshot-grid">
+        {keys.map((key) => {
+          const items = venture.tasks[key] || [];
+          const done = items.filter((item) => item.status === "Done").length;
+          const evidence = items.filter((item) => item.note).length;
+          return (
+            <div className="snapshot-row" key={key}>
+              <b>{WS[key][0]}</b>
+              <span>
+                {done}/{items.length} complete
+              </span>
+              <small>{evidence} evidence records</small>
+            </div>
+          );
+        })}
       </div>
     </section>
   );
@@ -760,6 +830,25 @@ function DomainControls({ k, data, update }) {
                 : "Describe the MVP scope, users, constraints and release outcome."
             }
           />
+          <button
+            type="button"
+            className="secondary"
+            disabled={!data.aiBrief?.trim()}
+            onClick={() =>
+              update("aiStatus", "Generated demo draft ready for review")
+            }
+          >
+            Generate demo draft
+          </button>
+          {data.aiStatus && (
+            <div className="evidence-preview">
+              <Rocket size={17} />
+              <span>
+                <b>{data.aiStatus}</b>
+                <small>{data.aiOutput}</small>
+              </span>
+            </div>
+          )}
         </Field>
       )}
       {method === "person" && (
@@ -1165,6 +1254,24 @@ function Tasks({ v, onTask }) {
               <div>
                 <b>{t.title}</b>
                 <small>{WS[k][0]}</small>
+                {(() => {
+                  try {
+                    const meta = JSON.parse(t.note || "{}");
+                    return (
+                      <small>
+                        {meta.assigneeName
+                          ? `Assigned to ${meta.assigneeName}`
+                          : meta.method === "ai" && meta.aiStatus
+                            ? meta.aiStatus
+                            : meta.file
+                              ? `Evidence preview: ${meta.file}`
+                              : "Unassigned · local demo"}
+                      </small>
+                    );
+                  } catch {
+                    return <small>Unassigned · local demo</small>;
+                  }
+                })()}
               </div>
               <span className="status-pill">{t.status}</span>
             </div>

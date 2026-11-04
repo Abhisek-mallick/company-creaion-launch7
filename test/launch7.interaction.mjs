@@ -46,6 +46,14 @@ assert.ok(
   button(renderer, "Open launch plan"),
   "dashboard should expose launch plan navigation",
 );
+assert.ok(
+  renderer.root.findAll(
+    (node) =>
+      node.type === "h2" &&
+      text(node).includes("Records, evidence and approval"),
+  ).length,
+  "dashboard should expose a consolidated launch snapshot",
+);
 await act(async () => button(renderer, "Open launch plan").props.onClick());
 assert.ok(
   button(renderer, "Review launch"),
@@ -92,6 +100,19 @@ assert.ok(
 );
 await act(async () => button(renderer, "Product & technology").props.onClick());
 await act(async () => button(renderer, "Draft with AI").props.onClick());
+const productBrief = renderer.root.findAllByType("textarea")[0];
+await act(async () =>
+  productBrief.props.onChange({
+    target: { value: "Prepare a focused MVP release draft" },
+  }),
+);
+await act(async () => button(renderer, "Generate demo draft").props.onClick());
+assert.ok(
+  renderer.root.findAll((node) =>
+    text(node).includes("Generated demo draft ready for review"),
+  ).length,
+  "AI mode should show a simulated draft review outcome",
+);
 const firstProductInput = renderer.root.findAllByType("input")[0];
 await act(async () =>
   firstProductInput.props.onChange({
@@ -155,6 +176,13 @@ assert.equal(
   100,
   "Product progress should be 100% after all stages",
 );
+await act(async () => button(renderer, "Assigned tasks").props.onClick());
+assert.ok(
+  renderer.root.findAll(
+    (node) => node.type === "small" && text(node).includes("local demo"),
+  ).length,
+  "Assigned Tasks should show local assignment/evidence metadata",
+);
 await act(async () => button(renderer, "Ventures").props.onClick());
 await act(async () => button(renderer, "Open launch plan").props.onClick());
 await act(async () => button(renderer, "Finance & ownership").props.onClick());
@@ -165,6 +193,16 @@ assert.ok(
       text(node).includes("Finance budget, funding and ownership"),
   ).length,
   "Finance should expose domain-specific controls",
+);
+const guardedFinanceTask = renderer.root.findAll(
+  (node) =>
+    node.type === "button" && node.props.className?.includes("check-button"),
+)[0];
+await act(async () => guardedFinanceTask.props.onClick());
+assert.equal(
+  guardedFinanceTask.props.className.includes("checked"),
+  false,
+  "Finance task checkbox should not bypass missing domain validation",
 );
 const budgetAmount = renderer.root.findAllByType("input")[0];
 await act(async () =>
