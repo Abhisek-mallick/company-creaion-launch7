@@ -183,8 +183,7 @@ await act(async () =>
 );
 const modalDeliverable = renderer.root
   .findAllByType("input")
-  .filter((node) => node.props.type === "file")
-  .at(0);
+  .find((node) => node.props["aria-label"] === "Brand deliverable file");
 await act(async () =>
   modalDeliverable.props.onChange({
     target: {
@@ -208,8 +207,7 @@ await act(async () => button(renderer, "Open Build modal").props.onClick());
 await act(async () => button(renderer, "Assign person").props.onClick());
 const replacementModalFile = renderer.root
   .findAllByType("input")
-  .filter((node) => node.props.type === "file")
-  .at(0);
+  .find((node) => node.props["aria-label"] === "Brand deliverable file");
 await act(async () =>
   replacementModalFile.props.onChange({
     target: {
@@ -217,12 +215,13 @@ await act(async () =>
     },
   }),
 );
-const replacementModalReview = renderer.root
-  .findAllByType("input")
-  .filter((node) => node.props.type === "checkbox")
-  .at(-1);
-await act(async () =>
-  replacementModalReview.props.onChange({ target: { checked: false } }),
+assert.equal(
+  renderer.root
+    .findAllByType("input")
+    .filter((node) => node.props.type === "checkbox")
+    .at(-1).props.checked,
+  false,
+  "replacing a Brand deliverable should immediately clear founder review",
 );
 await act(async () => button(renderer, "Save brand build").props.onClick());
 assert.equal(
@@ -257,6 +256,40 @@ assert.equal(
   true,
   "fresh review of the replacement should restore Brand readiness",
 );
+await act(async () => button(renderer, "Open Build modal").props.onClick());
+await act(async () => button(renderer, "Assign person").props.onClick());
+const sameNameFile = renderer.root
+  .findAllByType("input")
+  .find((node) => node.props["aria-label"] === "Brand deliverable file");
+await act(async () =>
+  sameNameFile.props.onChange({
+    target: {
+      files: [{ name: "modal-replacement.pdf", type: "application/pdf", size: 500 }],
+    },
+  }),
+);
+assert.equal(
+  renderer.root
+    .findAllByType("input")
+    .filter((node) => node.props.type === "checkbox")
+    .at(-1).props.checked,
+  false,
+  "same-name Brand evidence with new file metadata should clear review",
+);
+await act(async () => button(renderer, "Save brand build").props.onClick());
+assert.equal(
+  JSON.parse(store.get("launch7-draft-1-brand-0")).founderReviewed,
+  false,
+  "same-name evidence replacement should not retain founder review",
+);
+await act(async () => button(renderer, "Open Build modal").props.onClick());
+await act(async () => button(renderer, "Assign person").props.onClick());
+const sameNameRecheck = renderer.root
+  .findAllByType("input")
+  .filter((node) => node.props.type === "checkbox")
+  .at(-1);
+await act(async () => sameNameRecheck.props.onChange({ target: { checked: true } }));
+await act(async () => button(renderer, "Save brand build").props.onClick());
 await act(async () => button(renderer, "Product & technology").props.onClick());
 await act(async () => button(renderer, "Draft with AI").props.onClick());
 const productBrief = renderer.root.findAllByType("textarea")[0];
