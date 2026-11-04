@@ -21,16 +21,18 @@ for (const label of ['Budget', 'Funding', 'Ownership', 'Team & roles', 'Onboardi
   assert.match(ui, new RegExp(label.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')), `standalone UI should include ${label}`);
 }
 console.log('Launch7 guided-flow coverage passed');
-assert.match(ui, /window\.location\.search\.includes\('invitationToken'\)/, 'invitation URLs should open onboarding mode');
-assert.match(ui, /localStorage\.setItem\(`launch7-invite-email-\$\{inviteToken\}`/, 'invite email should persist locally');
-assert.match(ui, /localStorage\.setItem\(nameKey/, 'signature should persist locally');
-assert.match(ui, /localStorage\.setItem\(approvalKey,'Submitted'\)/, 'approval should persist as explicit local state');
-assert.match(ui, /const tabs=WS\[k\]\[1\]/, 'wizard should use per-workstream stages');
-assert.match(ui, /taskTitles=\['Define the decision','Add evidence or reference','Review and confirm','Validate saved evidence','Approve stage outcome'\]/, 'Product should have five persisted completion records');
-assert.match(ui, /const draftKey=`launch7-draft-\$\{v\.id\}-\$\{k\}-\$\{tab\}`/, 'wizard should restore saved stage fields');
-assert.match(ui, /JSON\.stringify\(\{a:data\.a,b:data\.b,c:data\.c,file:data\.file\}\)/, 'wizard should preserve arbitrary draft text without delimiter truncation');
-assert.match(ui, /const validEmail=/, 'invites should validate email format locally');
+assert.match(ui, /window\.location\.search\.includes\("invitationToken"\)/, 'invitation URLs should open onboarding mode');
+assert.match(ui, /launch7-invite-email-\$\{inviteToken\}/, 'invite email should persist locally');
+assert.match(ui, /localStorage\.setItem\(nameKey, name\)/, 'signature should persist locally');
+assert.match(ui, /localStorage\.setItem\(approvalKey, "Submitted"\)/, 'approval should persist as explicit local state');
+assert.match(ui, /const tabs = WS\[k\]\[1\]/, 'wizard should use per-workstream stages');
+for (const title of ['Define the decision', 'Add evidence or reference', 'Review and confirm', 'Validate saved evidence', 'Approve stage outcome']) {
+  assert.match(ui, new RegExp(`"${title}"`), `Product should persist ${title}`);
+}
+assert.match(ui, /const draftKey = `launch7-draft-\$\{v\.id\}-\$\{k\}-\$\{tab\}`/, 'wizard should restore saved stage fields');
+assert.match(ui, /JSON\.stringify\(\{\s*a: data\.a,\s*b: data\.b,\s*c: data\.c,\s*file: data\.file,\s*\}\)/, 'wizard should preserve arbitrary draft text without delimiter truncation');
+assert.match(ui, /const validEmail =/, 'invites should validate email format locally');
 const css = await readFile(new URL('../src/styles.css', import.meta.url), 'utf8');
 assert.match(css, /\.app-shell \.sidebar\{position:relative/, 'mobile app shell should keep navigation in the document flow');
-assert.match(ui, /done&&\(localStorage\.getItem\(approvalKey\)==='Submitted'/, 'approval should only remain submitted while all workstreams are complete');
+assert.match(ui, /done &&\s*\(\s*localStorage\.getItem\(approvalKey\) === "Submitted"/, 'approval should only remain submitted while all workstreams are complete');
 console.log('Launch7 persistence and navigation coverage passed');

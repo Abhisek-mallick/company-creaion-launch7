@@ -26,6 +26,12 @@ await act(async () => button(renderer, 'Product & technology').props.onClick());
 const firstProductInput = renderer.root.findAllByType('input')[0];
 await act(async () => firstProductInput.props.onChange({ target: { value: 'Validated MVP scope' } }));
 await act(async () => button(renderer, 'Save & continue').props.onClick());
+const deliveryInput = renderer.root.findAllByType('input')[0];
+await act(async () => deliveryInput.props.onChange({ target: { value: 'Delivery milestone B' } }));
+await act(async () => button(renderer, 'Scope').props.onClick());
+assert.equal(renderer.root.findAllByType('input')[0].props.value, 'Validated MVP scope', 'returning to Scope should restore its own draft');
+await act(async () => button(renderer, 'Delivery').props.onClick());
+assert.equal(renderer.root.findAllByType('input')[0].props.value, 'Delivery milestone B', 'returning to Delivery should restore its own draft');
 await act(async () => button(renderer, 'Ventures').props.onClick());
 await act(async () => button(renderer, 'Open launch plan').props.onClick());
 await act(async () => button(renderer, 'Product & technology').props.onClick());
@@ -37,6 +43,10 @@ assert.ok(savedVenture.tasks.product.every((item) => item.status === 'Done'), 'a
 assert.equal(Math.round(savedVenture.tasks.product.filter((item) => item.status === 'Done').length / savedVenture.tasks.product.length * 100), 100, 'Product progress should be 100% after all stages');
 await act(async () => { renderer = create(React.createElement(App)); });
 await act(async () => button(renderer, 'Open launch plan').props.onClick());
+await act(async () => button(renderer, 'Product & technology').props.onClick());
+assert.equal(renderer.root.findAllByType('input')[0].props.value, 'Validated MVP scope', 'Scope draft should survive reload');
+await act(async () => button(renderer, 'Delivery').props.onClick());
+assert.equal(renderer.root.findAllByType('input')[0].props.value, 'Delivery milestone B', 'Delivery draft should survive reload');
 assert.ok(renderer.root.findAll((node) => node.type === 'b' && text(node).includes('100%')).length === 1 || savedVenture.tasks.product.every((item) => item.status === 'Done'), 'saved completion should remain visible after reload');
 
 await act(async () => button(renderer, 'Team onboarding').props.onClick());
