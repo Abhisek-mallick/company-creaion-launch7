@@ -57,6 +57,41 @@ assert.ok(
 );
 
 await act(async () => button(renderer, "Product & technology").props.onClick());
+assert.ok(
+  button(renderer, "Draft with AI"),
+  "Product should expose a local AI draft action",
+);
+assert.ok(
+  button(renderer, "Assign to a person"),
+  "Product should expose person assignment",
+);
+await act(async () => button(renderer, "Assign to a person").props.onClick());
+const assignee = renderer.root.findAllByType("input")[0];
+await act(async () =>
+  assignee.props.onChange({ target: { value: "Product owner" } }),
+);
+assert.equal(
+  JSON.parse(store.get("launch7-draft-1-product-0")).assigneeName,
+  "Product owner",
+  "Product assignment should persist in the venture stage draft",
+);
+await act(async () => button(renderer, "Ventures").props.onClick());
+await act(async () => button(renderer, "Open launch plan").props.onClick());
+await act(async () => button(renderer, "Brand & collateral").props.onClick());
+assert.ok(
+  button(renderer, "Upload manually"),
+  "Brand should expose manual evidence action",
+);
+await act(async () => button(renderer, "Upload manually").props.onClick());
+assert.ok(
+  renderer.root.findAll(
+    (node) =>
+      node.type === "span" && text(node).includes("No evidence selected"),
+  ).length,
+  "Brand manual mode should show local evidence preview",
+);
+await act(async () => button(renderer, "Product & technology").props.onClick());
+await act(async () => button(renderer, "Draft with AI").props.onClick());
 const firstProductInput = renderer.root.findAllByType("input")[0];
 await act(async () =>
   firstProductInput.props.onChange({

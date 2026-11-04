@@ -586,6 +586,7 @@ function Wizard({ v, k, tasks, onTask }) {
           </button>
         ))}
       </div>
+      <DomainControls k={k} data={data} update={update} />
       <div className="guided-form">
         <div className="two-col">
           <Field label={fields[0]}>
@@ -661,6 +662,152 @@ function Wizard({ v, k, tasks, onTask }) {
         ))}
       </div>
     </div>
+  );
+}
+function DomainControls({ k, data, update }) {
+  if (k !== "brand" && k !== "product") return null;
+  const brand = k === "brand";
+  const method = data.method || "ai";
+  return (
+    <section
+      className="domain-controls"
+      aria-label={`${WS[k][0]} demo actions`}
+    >
+      <div className="domain-controls-heading">
+        <div>
+          <span className="chip">FRONTEND DEMO</span>
+          <h3>
+            {brand
+              ? "Choose how to create the brand work"
+              : "Shape the product delivery work"}
+          </h3>
+          <p>
+            AI generation, email assignment and storage are simulated locally
+            until backend adapters are connected.
+          </p>
+        </div>
+      </div>
+      <div
+        className="domain-methods"
+        role="group"
+        aria-label="Work completion method"
+      >
+        {[
+          ["ai", "Draft with AI"],
+          ["person", "Assign to a person"],
+          ["manual", "Upload manually"],
+        ].map(([id, label]) => (
+          <button
+            type="button"
+            key={id}
+            className={method === id ? "selected" : ""}
+            onClick={() => update("method", id)}
+          >
+            {label}
+          </button>
+        ))}
+      </div>
+      {method === "ai" && (
+        <Field label={brand ? "Creative brief" : "Product brief"}>
+          <textarea
+            value={data.aiBrief || ""}
+            onChange={(e) => update("aiBrief", e.target.value)}
+            placeholder={
+              brand
+                ? "Describe the logo, tone, audience and brand feeling."
+                : "Describe the MVP scope, users, constraints and release outcome."
+            }
+          />
+        </Field>
+      )}
+      {method === "person" && (
+        <div className="two-col">
+          <Field label="Assignee name">
+            <input
+              value={data.assigneeName || ""}
+              onChange={(e) => update("assigneeName", e.target.value)}
+              placeholder="Name"
+            />
+          </Field>
+          <Field label="Due date">
+            <input
+              type="date"
+              value={data.dueDate || ""}
+              onChange={(e) => update("dueDate", e.target.value)}
+            />
+          </Field>
+          <Field label="Assignment brief">
+            <textarea
+              value={data.instructions || ""}
+              onChange={(e) => update("instructions", e.target.value)}
+              placeholder="What should be delivered?"
+            />
+          </Field>
+        </div>
+      )}
+      {brand ? (
+        <div className="two-col">
+          <Field label="Deliverable">
+            <select
+              value={data.deliverable || "Logo and brand assets"}
+              onChange={(e) => update("deliverable", e.target.value)}
+            >
+              <option>Logo and brand assets</option>
+              <option>Brand guide</option>
+              <option>Launch collateral</option>
+              <option>Social media assets</option>
+            </select>
+          </Field>
+          <Field label="Preferred colors">
+            <input
+              value={data.colors || ""}
+              onChange={(e) => update("colors", e.target.value)}
+              placeholder="Teal, navy, or hex codes"
+            />
+          </Field>
+        </div>
+      ) : (
+        <div className="two-col">
+          <Field label="MVP scope">
+            <input
+              value={data.mvpScope || ""}
+              onChange={(e) => update("mvpScope", e.target.value)}
+              placeholder="What is in the first release?"
+            />
+          </Field>
+          <Field label="Release owner">
+            <input
+              value={data.releaseOwner || ""}
+              onChange={(e) => update("releaseOwner", e.target.value)}
+              placeholder="Owner"
+            />
+          </Field>
+          <Field label="Delivery milestone">
+            <input
+              value={data.deliveryMilestone || ""}
+              onChange={(e) => update("deliveryMilestone", e.target.value)}
+              placeholder="Target milestone"
+            />
+          </Field>
+          <Field label="Test plan">
+            <textarea
+              value={data.testPlan || ""}
+              onChange={(e) => update("testPlan", e.target.value)}
+              placeholder="Acceptance checks for this stage"
+            />
+          </Field>
+        </div>
+      )}
+      {method === "manual" && (
+        <div className="evidence-preview">
+          <FileText size={17} />
+          <span>
+            <b>{data.file || "No evidence selected"}</b>
+            <small>Local filename preview only; no file is uploaded.</small>
+          </span>
+        </div>
+      )}
+    </section>
   );
 }
 function Review({ v, setStep }) {

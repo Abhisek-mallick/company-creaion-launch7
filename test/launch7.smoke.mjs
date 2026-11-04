@@ -117,7 +117,7 @@ const css = await readFile(
 );
 assert.match(
   css,
-  /\.app-shell \.sidebar\{position:relative/,
+  /\.app-shell \.sidebar\s*\{\s*position:\s*relative/,
   "mobile app shell should keep navigation in the document flow",
 );
 assert.match(
