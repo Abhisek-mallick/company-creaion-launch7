@@ -24,6 +24,6 @@ console.log('Launch7 guided-flow coverage passed');
 assert.match(ui, /window\.location\.search\.includes\('invitationToken'\)/, 'invitation URLs should open onboarding mode');
 assert.match(ui, /localStorage\.setItem\('launch7-invite-email'/, 'invite email should persist locally');
 assert.match(ui, /localStorage\.setItem\('launch7-signed-name'/, 'signature should persist locally');
-assert.match(ui, /localStorage\.setItem\('launch7-approval','Submitted'\)/, 'approval should persist as explicit local state');
+assert.match(ui, /localStorage\.setItem\(approvalKey,'Submitted'\)/, 'approval should persist as explicit local state');
 assert.match(ui, /const tabs=WS\[k\]\[1\]/, 'wizard should use per-workstream stages');
 console.log('Launch7 persistence and navigation coverage passed');
