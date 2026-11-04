@@ -75,12 +75,10 @@ assert.ok(
 );
 await act(async () => button(renderer, "Assign to a person").props.onClick());
 const assignee = renderer.root.findAllByType("input")[0];
-await act(async () =>
-  assignee.props.onChange({ target: { value: "Product owner" } }),
-);
+await act(async () => assignee.props.onChange({ target: { value: "Alice" } }));
 assert.equal(
   JSON.parse(store.get("launch7-draft-1-product-0")).assigneeName,
-  "Product owner",
+  "Alice",
   "Product assignment should persist in the venture stage draft",
 );
 await act(async () => button(renderer, "Ventures").props.onClick());
@@ -91,10 +89,27 @@ assert.ok(
   "Brand should expose manual evidence action",
 );
 await act(async () => button(renderer, "Upload manually").props.onClick());
+const evidenceInput = renderer.root
+  .findAllByType("input")
+  .find((node) => node.props.type === "file");
+await act(async () =>
+  evidenceInput.props.onChange({
+    target: {
+      files: [{ name: "brand-kit.pdf", type: "application/pdf", size: 2048 }],
+    },
+  }),
+);
+assert.ok(
+  renderer.root.findAll(
+    (node) => node.type === "b" && text(node).includes("brand-kit.pdf"),
+  ).length,
+  "manual evidence should show the selected local file preview",
+);
 assert.ok(
   renderer.root.findAll(
     (node) =>
-      node.type === "span" && text(node).includes("No evidence selected"),
+      node.type === "small" &&
+      text(node).includes("browser-local preview only"),
   ).length,
   "Brand manual mode should show local evidence preview",
 );
@@ -122,9 +137,16 @@ await act(async () =>
   }),
 );
 await act(async () => button(renderer, "Save & continue").props.onClick());
+await act(async () => button(renderer, "Assign to a person").props.onClick());
 const deliveryInput = renderer.root
   .findAllByType("input")
   .find((node) => node.props.placeholder === "Target milestone");
+const deliveryAssignee = renderer.root
+  .findAllByType("input")
+  .find((node) => node.props.placeholder === "Name");
+await act(async () =>
+  deliveryAssignee.props.onChange({ target: { value: "Bob" } }),
+);
 await act(async () =>
   deliveryInput.props.onChange({ target: { value: "Delivery milestone B" } }),
 );
@@ -173,6 +195,16 @@ assert.match(
   savedVenture.tasks.product[0].note,
   /Validated MVP scope/,
   "task evidence should include domain fields",
+);
+assert.match(
+  savedVenture.tasks.product[0].note,
+  /Alice/,
+  "Product Scope task should retain Alice assignment",
+);
+assert.match(
+  savedVenture.tasks.product[1].note,
+  /Bob/,
+  "Product Delivery task should retain Bob assignment",
 );
 assert.ok(
   savedVenture.tasks.product.every((item) => item.status === "Done"),
@@ -282,9 +314,10 @@ await act(async () =>
   reviewBudget.props.onChange({ target: { value: "75000" } }),
 );
 await act(async () => button(renderer, "Save review").props.onClick());
-assert.match(
-  JSON.parse(store.get("launch7-v2"))[0].tasks.finance[0].note,
-  /75000/,
+assert.ok(
+  JSON.parse(store.get("launch7-v2"))[0].tasks.finance.some((item) =>
+    /75000/.test(item.note),
+  ),
   "editing Finance review should update task evidence instead of preserving stale notes",
 );
 await act(async () => button(renderer, "Budget").props.onClick());

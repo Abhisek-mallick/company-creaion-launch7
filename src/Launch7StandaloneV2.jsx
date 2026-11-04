@@ -629,6 +629,21 @@ function Wizard({ v, k, tasks, onTask }) {
     localStorage.setItem(draftKey, JSON.stringify(next));
     localStorage.removeItem(`launch7-approval-${v.id}`);
   };
+  const updateMany = (patch) => {
+    const next = {
+      ...data,
+      ...patch,
+      __fieldUpdated: {
+        ...(data.__fieldUpdated || {}),
+        ...Object.fromEntries(
+          Object.keys(patch).map((key) => [key, Date.now()]),
+        ),
+      },
+    };
+    setData(next);
+    localStorage.setItem(draftKey, JSON.stringify(next));
+    localStorage.removeItem(`launch7-approval-${v.id}`);
+  };
   const save = () => {
     const required =
       k === "finance"
@@ -659,16 +674,24 @@ function Wizard({ v, k, tasks, onTask }) {
     if (tab === tabs.length - 1) {
       const stored = JSON.parse(localStorage.getItem("launch7-v2") || "[]");
       const source = stored.length ? stored : [v];
+      const stageNotes = (row) =>
+        row.tasks[k].map((_, index) =>
+          JSON.stringify(
+            readDraft(
+              `launch7-draft-${v.id}-${k}-${Math.min(index, tabs.length - 1)}`,
+            ),
+          ),
+        );
       const savedRows = source.map((row) =>
         row.id === v.id
           ? {
               ...row,
               tasks: {
                 ...row.tasks,
-                [k]: row.tasks[k].map((x) => ({
+                [k]: row.tasks[k].map((x, index) => ({
                   ...x,
                   status: "Done",
-                  note,
+                  note: stageNotes(row)[index] || note,
                 })),
               },
             }
@@ -700,7 +723,12 @@ function Wizard({ v, k, tasks, onTask }) {
           </button>
         ))}
       </div>
-      <DomainControls k={k} data={data} update={update} />
+      <DomainControls
+        k={k}
+        data={data}
+        update={update}
+        updateMany={updateMany}
+      />
       {domainError && (
         <p className="field-error" role="alert">
           {domainError}
@@ -731,11 +759,24 @@ function Wizard({ v, k, tasks, onTask }) {
           <FileText size={16} />
           <span>
             <b>{data.file || "Attach evidence file"}</b>
-            <small>Filename and metadata only.</small>
+            <small>
+              {data.file
+                ? `${data.fileType || "File"} · ${data.fileSize || 0} bytes · browser-local preview only`
+                : "Filename and metadata only; nothing is uploaded."}
+            </small>
           </span>
           <input
             type="file"
-            onChange={(e) => update("file", e.target.files?.[0]?.name || "")}
+            onChange={(e) => {
+              const file = e.target.files?.[0];
+              if (file)
+                updateMany({
+                  file: file.name,
+                  fileType: file.type,
+                  fileSize: file.size,
+                  fileStored: false,
+                });
+            }}
           />
         </label>
         <div className="wizard-actions">
@@ -783,7 +824,7 @@ function Wizard({ v, k, tasks, onTask }) {
     </div>
   );
 }
-function DomainControls({ k, data, update }) {
+function DomainControls({ k, data, update, updateMany }) {
   if (
     ["finance", "legal", "people", "apps", "partners", "launch"].includes(k)
   ) {
@@ -847,7 +888,10 @@ function DomainControls({ k, data, update }) {
             className="secondary"
             disabled={!data.aiBrief?.trim()}
             onClick={() =>
-              update("aiStatus", "Generated demo draft ready for review")
+              updateMany({
+                aiStatus: "Generated demo draft ready for review",
+                aiOutput: `${brand ? "Brand kit" : "Product release plan"} draft prepared from the local brief.`,
+              })
             }
           >
             Generate demo draft
