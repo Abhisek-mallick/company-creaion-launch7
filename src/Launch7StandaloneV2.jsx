@@ -99,22 +99,49 @@ const productTaskTemplates = [
 ];
 const productTaskTitles = productTaskTemplates.map(([title]) => title);
 const productChecklist = ["Owner confirmed", "Evidence reference added", "Review recorded"];
-const productTasks = (existing = []) =>
-  productTaskTitles.map((title, i) => ({
-    ...(existing[i] || {}),
-    id: existing[i]?.id || `product${i}`,
-    title:
-      existing[i]?.title && !legacyProductTaskTitles.includes(existing[i].title)
-        ? existing[i].title
-        : title,
-    checklist:
-      existing[i]?.checklist &&
-      JSON.stringify(existing[i].checklist) !== JSON.stringify(productChecklist)
-        ? existing[i].checklist
-        : productTaskTemplates[i][1],
-    status: existing[i]?.status || "Not started",
-    note: existing[i]?.note || "",
+const productTasks = (existing = []) => {
+  const defaults = productTaskTemplates.map(([title, checklist], i) => ({
+    id: `product${i}`,
+    title,
+    checklist,
+    status: "Not started",
+    note: "",
   }));
+  const migrated = defaults.map((fallback, i) => {
+    const saved = existing[i];
+    if (!saved) return fallback;
+    const legacyTitle = legacyProductTaskTitles.includes(saved.title);
+    const legacyChecklist =
+      saved.checklist &&
+      JSON.stringify(saved.checklist) !== JSON.stringify(productChecklist)
+        ? null
+        : saved.checklist;
+    return {
+      ...fallback,
+      ...saved,
+      id: saved.id || fallback.id,
+      title:
+        saved.title && !legacyTitle
+          ? saved.title
+          : fallback.title,
+      checklist: legacyTitle ? fallback.checklist : saved.checklist || fallback.checklist,
+      status: legacyTitle ? "Needs review" : saved.status || fallback.status,
+      note: saved.note ?? fallback.note,
+      ...(legacyTitle
+        ? {
+            legacyTitle: saved.title,
+            legacyChecklist,
+            legacyChecklistState: saved.checklistState,
+            migrationReviewRequired: true,
+            evidenceReview: "Missing",
+            checklistState: {},
+          }
+        : {}),
+    };
+  });
+  // Preserve server/custom tasks beyond the local demo template collection.
+  return [...migrated, ...existing.slice(defaults.length)];
+};
 const makeTasks = () =>
   Object.fromEntries(
     keys.map((k) => [
@@ -142,6 +169,17 @@ const initial = () => {
       }));
       try {
         localStorage.setItem("launch7-v2", JSON.stringify(migrated));
+        migrated.forEach((venture) => {
+          if (
+            venture.tasks.product.some((task) => task.migrationReviewRequired)
+          ) {
+            localStorage.removeItem(`launch7-approval-${venture.id}`);
+            localStorage.setItem(
+              `launch7-approval-invalidated-${venture.id}`,
+              "1",
+            );
+          }
+        });
       } catch {
         // Keep migrated records available in memory when local storage is full.
       }

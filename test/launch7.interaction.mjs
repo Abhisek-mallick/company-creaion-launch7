@@ -1631,9 +1631,10 @@ const legacyRows = JSON.parse(store.get("launch7-v2")).map((venture) => ({
   ...venture,
   tasks: {
     ...venture.tasks,
-    product: venture.tasks.product.map((task, index) => ({
-      ...task,
-      title: index === 0 ? "Founder custom product task" : [
+    product: [
+      ...venture.tasks.product.map((task, index) => ({
+        ...task,
+        title: index === 0 ? "Founder custom product task" : [
         "Define product vision",
         "Capture target user",
         "Prioritize MVP scope",
@@ -1650,10 +1651,35 @@ const legacyRows = JSON.parse(store.get("launch7-v2")).map((venture) => ({
         "Record defects and fixes",
         "Validate release readiness",
         "Approve release outcome",
-      ][index],
-    })),
+        ][index],
+      })),
+      {
+        id: "custom-product-17",
+        title: "Custom integration sign-off",
+        note: "Keep this note and metadata",
+        assigneeName: "Jordan",
+        evidenceReference: "CUSTOM-17",
+        evidenceReview: "Founder reviewed",
+        checklist: ["Custom evidence gate"],
+        checklistState: [true],
+        status: "Done",
+        customMetadata: "preserve-me",
+      },
+      {
+        id: "custom-product-18",
+        title: "Custom partner handoff",
+        note: "Second custom task survives reload",
+        assigneeName: "Priya",
+        evidenceReference: "CUSTOM-18",
+        evidenceReview: "Founder reviewed",
+        checklist: ["Partner handoff gate"],
+        checklistState: [true],
+        status: "Done",
+      },
+    ],
   },
 }));
+store.set("launch7-approval-99", "Submitted");
 store.set("launch7-v2", JSON.stringify(legacyRows));
 await act(async () => {
   renderer = create(React.createElement(App));
@@ -1661,6 +1687,26 @@ await act(async () => {
 await act(async () => button(renderer, "Open launch plan").props.onClick());
 await act(async () => button(renderer, "Product & technology").props.onClick());
 const migrated = JSON.parse(store.get("launch7-v2"))[0].tasks.product;
+assert.equal(
+  migrated.length,
+  18,
+  "Product migration should preserve task collections larger than the defaults",
+);
+assert.equal(
+  migrated[16].note,
+  "Keep this note and metadata",
+  "custom Product task notes should survive mount migration",
+);
+assert.equal(
+  migrated[16].customMetadata,
+  "preserve-me",
+  "custom Product task metadata should survive mount migration",
+);
+assert.equal(
+  migrated[17].evidenceReference,
+  "CUSTOM-18",
+  "custom Product evidence should survive mount migration",
+);
 assert.equal(
   migrated[0].title,
   "Founder custom product task",
@@ -1670,6 +1716,21 @@ assert.equal(
   migrated[1].title,
   "Define the target audience and problem",
   "Product migration should map legacy titles to current templates",
+);
+assert.equal(
+  migrated[1].status,
+  "Needs review",
+  "legacy Product tasks should not retain completion after template migration",
+);
+assert.equal(
+  migrated[1].evidenceReview,
+  "Missing",
+  "legacy Product evidence review should be invalidated after template migration",
+);
+assert.equal(
+  store.get("launch7-approval-99"),
+  undefined,
+  "template migration should invalidate a stale approval snapshot",
 );
 assert.deepEqual(
   migrated[1].checklist,
