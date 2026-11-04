@@ -30,4 +30,7 @@ assert.match(ui, /taskTitles=\['Define the decision','Add evidence or reference'
 assert.match(ui, /const draftKey=`launch7-draft-\$\{v\.id\}-\$\{k\}-\$\{tab\}`/, 'wizard should restore saved stage fields');
 assert.match(ui, /JSON\.stringify\(\{a:data\.a,b:data\.b,c:data\.c,file:data\.file\}\)/, 'wizard should preserve arbitrary draft text without delimiter truncation');
 assert.match(ui, /const validEmail=/, 'invites should validate email format locally');
+const css = await readFile(new URL('../src/styles.css', import.meta.url), 'utf8');
+assert.match(css, /\.app-shell \.sidebar\{position:relative/, 'mobile app shell should keep navigation in the document flow');
+assert.match(ui, /done&&\(localStorage\.getItem\(approvalKey\)==='Submitted'/, 'approval should only remain submitted while all workstreams are complete');
 console.log('Launch7 persistence and navigation coverage passed');
