@@ -78,6 +78,18 @@ assert.ok(
   button(renderer, "Assign to a person"),
   "Product should expose person assignment",
 );
+for (const title of [
+  "Define the product name and type",
+  "Choose the delivery method",
+  "Record build status and constraints",
+  "Verify the offer and customer journey",
+  "Approve the product release outcome",
+]) {
+  assert.ok(
+    text(renderer.root).includes(title),
+    `Product should expose the original task-specific template: ${title}`,
+  );
+}
 await act(async () => button(renderer, "Assign to a person").props.onClick());
 const assignee = renderer.root.findAllByType("input")[0];
 await act(async () => assignee.props.onChange({ target: { value: "Alice" } }));
@@ -285,13 +297,13 @@ assert.ok(
 await act(async () => button(renderer, "Show checklist").props.onClick());
 const taskOwner = renderer.root
   .findAllByType("input")
-  .find((node) => node.props["aria-label"] === "Define product vision owner");
+  .find((node) => node.props["aria-label"] === "Define the product name and type owner");
 await act(async () => taskOwner.props.onChange({ target: { value: "Alice" } }));
 const taskEvidence = renderer.root
   .findAllByType("select")
   .find(
     (node) =>
-      node.props["aria-label"] === "Define product vision evidence review",
+      node.props["aria-label"] === "Define the product name and type evidence review",
   );
 await act(async () =>
   taskEvidence.props.onChange({ target: { value: "Founder reviewed" } }),
@@ -310,7 +322,7 @@ const taskEvidenceReference = renderer.root
   .findAllByType("input")
   .find(
     (node) =>
-      node.props["aria-label"] === "Define product vision evidence reference",
+      node.props["aria-label"] === "Define the product name and type evidence reference",
   );
 await act(async () =>
   taskEvidenceReference.props.onChange({ target: { value: "REF-CHANGED" } }),
@@ -1494,7 +1506,7 @@ await act(async () => {
 await act(async () => button(renderer, "Assigned tasks").props.onClick());
 const firstProductOwner = renderer.root
   .findAllByType("input")
-  .find((node) => node.props["aria-label"] === "Define product vision owner");
+  .find((node) => node.props["aria-label"] === "Define the product name and type owner");
 await act(async () =>
   firstProductOwner.props.onChange({ target: { value: "Alice" } }),
 );
@@ -1502,7 +1514,7 @@ const firstProductEvidence = renderer.root
   .findAllByType("select")
   .find(
     (node) =>
-      node.props["aria-label"] === "Define product vision evidence review",
+      node.props["aria-label"] === "Define the product name and type evidence review",
   );
 await act(async () =>
   firstProductEvidence.props.onChange({
@@ -1513,7 +1525,7 @@ const firstProductReference = renderer.root
   .findAllByType("input")
   .find(
     (node) =>
-      node.props["aria-label"] === "Define product vision evidence reference",
+      node.props["aria-label"] === "Define the product name and type evidence reference",
   );
 await act(async () =>
   firstProductReference.props.onChange({ target: { value: "REF-1" } }),
@@ -1614,5 +1626,59 @@ assert.ok(
       (text(node).includes("Missing:") || text(node).includes("Needs work")),
   ).length >= 1,
   "review readiness should explain incomplete domain workstreams",
+);
+const legacyRows = JSON.parse(store.get("launch7-v2")).map((venture) => ({
+  ...venture,
+  tasks: {
+    ...venture.tasks,
+    product: venture.tasks.product.map((task, index) => ({
+      ...task,
+      title: index === 0 ? "Founder custom product task" : [
+        "Define product vision",
+        "Capture target user",
+        "Prioritize MVP scope",
+        "Write acceptance criteria",
+        "Map the core user journey",
+        "Confirm technical constraints",
+        "Set delivery milestone",
+        "Assign delivery owner",
+        "Break work into milestones",
+        "Prepare build environment",
+        "Implement core workflow",
+        "Configure product analytics",
+        "Test critical paths",
+        "Record defects and fixes",
+        "Validate release readiness",
+        "Approve release outcome",
+      ][index],
+    })),
+  },
+}));
+store.set("launch7-v2", JSON.stringify(legacyRows));
+await act(async () => {
+  renderer = create(React.createElement(App));
+});
+await act(async () => button(renderer, "Open launch plan").props.onClick());
+await act(async () => button(renderer, "Product & technology").props.onClick());
+const migrated = JSON.parse(store.get("launch7-v2"))[0].tasks.product;
+assert.equal(
+  migrated[0].title,
+  "Founder custom product task",
+  "Product migration should preserve custom task titles",
+);
+assert.equal(
+  migrated[1].title,
+  "Define the target audience and problem",
+  "Product migration should map legacy titles to current templates",
+);
+assert.deepEqual(
+  migrated[1].checklist,
+  ["Audience named", "Problem statement recorded"],
+  "Product migration should apply the matching stage checklist",
+);
+assert.ok(
+  text(renderer.root).includes("Founder custom product task") &&
+    text(renderer.root).includes("Define the target audience and problem"),
+  "migrated Product inventory should be visible in the UI",
 );
 console.log("Launch7 component interaction tests passed");

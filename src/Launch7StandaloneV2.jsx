@@ -61,7 +61,7 @@ const taskTitles = [
   "Validate saved evidence",
   "Approve stage outcome",
 ];
-const productTaskTitles = [
+const legacyProductTaskTitles = [
   "Define product vision",
   "Capture target user",
   "Prioritize MVP scope",
@@ -79,17 +79,39 @@ const productTaskTitles = [
   "Validate release readiness",
   "Approve release outcome",
 ];
-const productChecklist = [
-  "Decision recorded",
-  "Reference or evidence attached",
-  "Owner confirmed",
+const productTaskTemplates = [
+  ["Define the product name and type", ["Product type selected", "Product name recorded"]],
+  ["Define the target audience and problem", ["Audience named", "Problem statement recorded"]],
+  ["Confirm the MVP purpose and features", ["Purpose recorded", "MVP features scoped"]],
+  ["Choose the delivery method", ["Person, AI or existing route selected", "Delivery route recorded"]],
+  ["Assign the builder and delivery brief", ["Builder confirmed", "Brief and contact recorded"]],
+  ["Set the target delivery date", ["Target date recorded", "Milestone owner confirmed"]],
+  ["Record build status and constraints", ["Build status recorded", "Constraints noted"]],
+  ["Capture the preview or production reference", ["Preview or production link added", "Delivery reference added"]],
+  ["Document the submitted build", ["Build notes recorded", "Evidence reference added"]],
+  ["Confirm the core workflow", ["Core workflow demonstrated", "Journey evidence attached"]],
+  ["Verify the offer and customer journey", ["Offer is understandable", "Customer journey works"]],
+  ["Test mobile layout and error handling", ["Mobile layout checked", "Error handling checked"]],
+  ["Record defects and open issues", ["Defects recorded", "Open issues have owners"]],
+  ["Validate release evidence", ["Evidence reviewed", "Release checks complete"]],
+  ["Confirm release readiness", ["No unresolved blockers", "Release owner confirmed"]],
+  ["Approve the product release outcome", ["Reviewer recorded", "Release decision recorded"]],
 ];
+const productTaskTitles = productTaskTemplates.map(([title]) => title);
+const productChecklist = ["Owner confirmed", "Evidence reference added", "Review recorded"];
 const productTasks = (existing = []) =>
   productTaskTitles.map((title, i) => ({
     ...(existing[i] || {}),
     id: existing[i]?.id || `product${i}`,
-    title,
-    checklist: existing[i]?.checklist || productChecklist,
+    title:
+      existing[i]?.title && !legacyProductTaskTitles.includes(existing[i].title)
+        ? existing[i].title
+        : title,
+    checklist:
+      existing[i]?.checklist &&
+      JSON.stringify(existing[i].checklist) !== JSON.stringify(productChecklist)
+        ? existing[i].checklist
+        : productTaskTemplates[i][1],
     status: existing[i]?.status || "Not started",
     note: existing[i]?.note || "",
   }));
@@ -110,14 +132,21 @@ const makeTasks = () =>
 const initial = () => {
   try {
     const saved = JSON.parse(localStorage.getItem("launch7-v2"));
-    if (saved)
-      return saved.map((v) => ({
+    if (saved) {
+      const migrated = saved.map((v) => ({
         ...v,
         tasks: {
           ...v.tasks,
           product: productTasks(v.tasks.product || []),
         },
       }));
+      try {
+        localStorage.setItem("launch7-v2", JSON.stringify(migrated));
+      } catch {
+        // Keep migrated records available in memory when local storage is full.
+      }
+      return migrated;
+    }
     return [
       {
         id: 1,
