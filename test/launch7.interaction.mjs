@@ -162,6 +162,75 @@ assert.ok(
   "Brand manual mode should show local evidence preview",
 );
 await act(async () => button(renderer, "Open Build modal").props.onClick());
+await act(async () => button(renderer, "Assign person").props.onClick());
+await act(async () =>
+  renderer.root
+    .findAllByType("input")
+    .find((node) => node.props.placeholder === "Name")
+    .props.onChange({ target: { value: "Modal designer" } }),
+);
+await act(async () =>
+  renderer.root
+    .findAllByType("input")
+    .find((node) => node.props.type === "date")
+    .props.onChange({ target: { value: "2026-12-15" } }),
+);
+await act(async () =>
+  renderer.root
+    .findAllByType("textarea")
+    .find((node) => node.props.placeholder === "What should be delivered?")
+    .props.onChange({ target: { value: "Modal brand deliverable" } }),
+);
+const modalDeliverable = renderer.root
+  .findAllByType("input")
+  .filter((node) => node.props.type === "file")
+  .at(0);
+await act(async () =>
+  modalDeliverable.props.onChange({
+    target: {
+      files: [{ name: "modal-deliverable.pdf", type: "application/pdf", size: 300 }],
+    },
+  }),
+);
+const modalFounderReview = renderer.root
+  .findAllByType("input")
+  .find((node) => node.props.type === "checkbox");
+await act(async () =>
+  modalFounderReview.props.onChange({ target: { checked: true } }),
+);
+await act(async () => button(renderer, "Save brand build").props.onClick());
+assert.equal(
+  JSON.parse(store.get("launch7-draft-1-brand-0")).founderReviewed,
+  true,
+  "Brand person evidence and founder review should persist in one modal save",
+);
+await act(async () => button(renderer, "Open Build modal").props.onClick());
+await act(async () => button(renderer, "Assign person").props.onClick());
+const replacementModalFile = renderer.root
+  .findAllByType("input")
+  .filter((node) => node.props.type === "file")
+  .at(0);
+await act(async () =>
+  replacementModalFile.props.onChange({
+    target: {
+      files: [{ name: "modal-replacement.pdf", type: "application/pdf", size: 400 }],
+    },
+  }),
+);
+const replacementModalReview = renderer.root
+  .findAllByType("input")
+  .filter((node) => node.props.type === "checkbox")
+  .at(-1);
+await act(async () =>
+  replacementModalReview.props.onChange({ target: { checked: false } }),
+);
+await act(async () => button(renderer, "Save brand build").props.onClick());
+assert.equal(
+  JSON.parse(store.get("launch7-draft-1-brand-0")).founderReviewed,
+  false,
+  "replacing Brand evidence without a fresh review should invalidate approval",
+);
+await act(async () => button(renderer, "Open Build modal").props.onClick());
 await act(async () =>
   renderer.root
     .findAllByType("button")
@@ -172,6 +241,21 @@ assert.equal(
   renderer.root.findAll((node) => node.props.role === "dialog").length,
   0,
   "Brand Build modal should close cleanly",
+);
+await act(async () => button(renderer, "Open Build modal").props.onClick());
+await act(async () => button(renderer, "Assign person").props.onClick());
+const restoredModalReview = renderer.root
+  .findAllByType("input")
+  .filter((node) => node.props.type === "checkbox")
+  .at(-1);
+await act(async () =>
+  restoredModalReview.props.onChange({ target: { checked: true } }),
+);
+await act(async () => button(renderer, "Save brand build").props.onClick());
+assert.equal(
+  JSON.parse(store.get("launch7-draft-1-brand-0")).founderReviewed,
+  true,
+  "fresh review of the replacement should restore Brand readiness",
 );
 await act(async () => button(renderer, "Product & technology").props.onClick());
 await act(async () => button(renderer, "Draft with AI").props.onClick());

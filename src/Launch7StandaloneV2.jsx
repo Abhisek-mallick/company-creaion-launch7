@@ -1016,8 +1016,12 @@ function Wizard({ v, k, tasks, onTask }) {
     localStorage.removeItem(`launch7-approval-${v.id}`);
   };
   const updateMany = (patch) => {
+    const evidenceChanged =
+      k === "brand" &&
+      patch.deliverableFile &&
+      patch.deliverableFile !== data.deliverableFile;
     const nextPatch =
-      k === "brand" && patch.deliverableFile
+      evidenceChanged && patch.founderReviewed !== true
         ? { ...patch, founderReviewed: false }
         : patch;
     const next = {
@@ -1345,7 +1349,7 @@ function BrandBuildModal({ data, onSave, onClose }) {
               <Field label="Assignee name"><input value={draft.assigneeName || ""} onChange={(event) => set("assigneeName", event.target.value)} placeholder="Name" /></Field>
               <Field label="Deadline"><input type="date" value={draft.dueDate || ""} onChange={(event) => set("dueDate", event.target.value)} /></Field>
               <Field label="Assignment brief"><textarea value={draft.instructions || ""} onChange={(event) => set("instructions", event.target.value)} placeholder="What should be delivered?" /></Field>
-              <label className="upload-row"><FileText size={16} /><span><b>{draft.deliverableFile || "Attach deliverable"}</b><small>Browser-local preview only; no upload performed.</small></span><input type="file" onChange={(event) => { const file = event.target.files?.[0]; if (file) setDraft((current) => ({ ...current, deliverableFile: file.name, deliverableType: file.type, deliverableSize: file.size })); }} /></label>
+              <label className="upload-row"><FileText size={16} /><span><b>{draft.deliverableFile || "Attach deliverable"}</b><small>Browser-local preview only; no upload performed.</small></span><input aria-label="Brand deliverable file" type="file" onChange={(event) => { const file = event.target.files?.[0]; if (file) setDraft((current) => ({ ...current, deliverableFile: file.name, deliverableType: file.type, deliverableSize: file.size })); }} /></label>
               <label className="review-check"><input type="checkbox" checked={Boolean(draft.founderReviewed)} onChange={(event) => set("founderReviewed", event.target.checked)} /> Founder reviewed this demo deliverable</label>
             </div>
           )}
