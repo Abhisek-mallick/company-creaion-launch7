@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { readFile } from 'node:fs/promises';
 import { allWorkstreamsComplete, computeReadiness, nextAction, WORKSTREAM_KEYS } from '../src/lib/launch7Model.js';
 
 const tasks = Object.fromEntries(WORKSTREAM_KEYS.map((key) => [key, [
@@ -15,3 +16,8 @@ assert.equal(computeReadiness(complete), 100);
 assert.equal(nextAction(complete), 'launch-review');
 assert.equal(allWorkstreamsComplete(complete), true);
 console.log('Launch7 model smoke tests passed');
+const ui = await readFile(new URL('../src/Launch7Standalone.jsx', import.meta.url), 'utf8');
+for (const label of ['Budget', 'Funding', 'Ownership', 'Team & roles', 'Onboarding', 'Scope', 'Delivery', 'Filing route', 'Status & evidence', 'Partners', 'Commitments', 'Generate local invitation link', 'Submit for approval']) {
+  assert.match(ui, new RegExp(label.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')), `standalone UI should include ${label}`);
+}
+console.log('Launch7 guided-flow coverage passed');
