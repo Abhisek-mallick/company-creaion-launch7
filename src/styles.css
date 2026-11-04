@@ -981,6 +981,28 @@ button {
   padding-top: 16px;
   border-top: 1px solid var(--line);
 }
+.record-metrics {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 8px;
+  margin: 12px 0 16px;
+}
+.record-metrics span {
+  display: grid;
+  gap: 3px;
+  padding: 10px;
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  background: #fbfcfe;
+}
+.record-metrics small {
+  color: #8491a4;
+  font-size: 10px;
+}
+.record-metrics b {
+  color: var(--ink);
+  font-size: 15px;
+}
 .record-heading {
   display: flex;
   justify-content: space-between;
@@ -1236,6 +1258,9 @@ button {
   }
   .record-form {
     grid-template-columns: 1fr;
+  }
+  .record-metrics {
+    grid-template-columns: 1fr 1fr;
   }
   .form-hero h1 {
     font-size: 29px;

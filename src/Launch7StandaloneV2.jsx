@@ -279,6 +279,12 @@ const domainMissing = (ventureId, key, tasks = []) => {
     missing.push("ownership document not accepted");
   return missing;
 };
+const launchReady = (venture) =>
+  keys.every(
+    (key) =>
+      venture.tasks[key].every((task) => task.status === "Done") &&
+      domainReady(venture.id, key, venture.tasks[key]),
+  );
 export default function Launch7StandaloneV2() {
   const [rows, setRows] = useState(initial);
   const [selectedId, setSelectedId] = useState(
@@ -538,10 +544,15 @@ function Dashboard({ rows, open, newV, selected }) {
             <p>{x.summary}</p>
             <div className="progress-row">
               <span>Readiness</span>
-              <b>{progress(x)}%</b>
+              <b>{launchReady(x) ? "Ready" : "Blocked"}</b>
             </div>
             <div className="progress">
-              <i style={{ width: progress(x) + "%" }} />
+              <i
+                style={{
+                  width:
+                    (launchReady(x) ? 100 : Math.min(progress(x), 95)) + "%",
+                }}
+              />
             </div>
             <button className="card-action" onClick={() => open(i)}>
               Open launch plan <ArrowRight size={16} />
@@ -1353,9 +1364,26 @@ function OperationsControls({ k, ventureId, data, update }) {
     if (required.some((field) => !String(draft[field] || "").trim())) return;
     const list = records[type] || [];
     const id = editing[type] || `${type}-${Date.now()}`;
+    const previous = list.find((item) => item.id === id);
+    const record = {
+      ...draft,
+      id,
+      ...(type === "decisions"
+        ? {
+            version: (previous?.version || 0) + 1,
+            history: previous
+              ? [
+                  ...(previous.history || []),
+                  { ...previous, archivedAt: new Date().toISOString() },
+                ]
+              : [],
+            updatedAt: new Date().toISOString(),
+          }
+        : {}),
+    };
     const next = {
       ...records,
-      [type]: [...list.filter((item) => item.id !== id), { ...draft, id }],
+      [type]: [...list.filter((item) => item.id !== id), record],
     };
     saveRecords(next);
     setDrafts((current) => ({ ...current, [type]: {} }));
@@ -1402,6 +1430,12 @@ function OperationsControls({ k, ventureId, data, update }) {
                 .filter(Boolean)
                 .join(" · ")}
             </small>
+            {item.version && (
+              <small>
+                Version {item.version} · {item.history?.length || 0} prior
+                snapshot(s)
+              </small>
+            )}
           </span>
           <button
             className="text-button"
@@ -1424,9 +1458,21 @@ function OperationsControls({ k, ventureId, data, update }) {
   const financeData =
     k === "finance" ? storedDomainData(ventureId, "finance") : data;
   const expenseTotal = (records.expenses || []).reduce(
-    (total, item) => total + (Number(item.amount) || 0),
+    (total, item) =>
+      total + (Number(String(item.amount || "").replace(/,/g, "")) || 0),
     0,
   );
+  const expenseByStatus = (status) =>
+    (records.expenses || [])
+      .filter((item) => (item.status || "Planned") === status)
+      .reduce(
+        (total, item) =>
+          total + (Number(String(item.amount || "").replace(/,/g, "")) || 0),
+        0,
+      );
+  const plannedSpend = expenseByStatus("Planned");
+  const committedSpend = expenseByStatus("Committed");
+  const paidSpend = expenseByStatus("Paid");
   const budgetTotal =
     Number(String(financeData.budgetAmount || "").replace(/,/g, "")) || 0;
   const budgetRemaining = Math.max(budgetTotal - expenseTotal, 0);
@@ -1472,6 +1518,13 @@ function OperationsControls({ k, ventureId, data, update }) {
             <small>Runway estimate</small>
             <b>{runwayEstimate}</b>
           </span>
+          <span>
+            <small>Planned / committed / paid</small>
+            <b>
+              {plannedSpend.toLocaleString()} /{" "}
+              {committedSpend.toLocaleString()} / {paidSpend.toLocaleString()}
+            </b>
+          </span>
         </div>
         <div className="two-col">
           {field("Budget amount", "budgetAmount", "e.g. 50000", "number")}
@@ -1504,6 +1557,17 @@ function OperationsControls({ k, ventureId, data, update }) {
             {recordInput("expenses", "category", "Expense category")}
             {recordInput("expenses", "amount", "Amount")}
             {recordInput("expenses", "date", "Date", "date")}
+            {recordSelect("expenses", "status", [
+              "Planned",
+              "Committed",
+              "Paid",
+            ])}
+            {recordSelect("expenses", "frequency", [
+              "One-time",
+              "Monthly",
+              "Annual",
+            ])}
+            {recordInput("expenses", "evidence", "Evidence reference")}
             {recordInput("expenses", "note", "Evidence or note")}
             <button
               className="secondary"
@@ -1512,7 +1576,14 @@ function OperationsControls({ k, ventureId, data, update }) {
               {editing.expenses ? "Update expense" : "Add expense"}
             </button>
           </div>
-          {recordList("expenses", ["category", "amount", "date", "note"])}
+          {recordList("expenses", [
+            "category",
+            "amount",
+            "status",
+            "frequency",
+            "date",
+            "evidence",
+          ])}
         </div>
         <div className="record-section">
           <div className="record-heading">

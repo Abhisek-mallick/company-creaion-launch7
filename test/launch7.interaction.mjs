@@ -366,17 +366,34 @@ await act(async () =>
   renderer.root
     .findAllByType("input")
     .find((node) => node.props.placeholder === "Amount")
-    .props.onChange({ target: { value: "150" } }),
+    .props.onChange({ target: { value: "250" } }),
 );
 await act(async () => button(renderer, "Update expense").props.onClick());
+await act(async () =>
+  renderer.root
+    .findAllByType("input")
+    .find((node) => node.props.placeholder === "Expense category")
+    .props.onChange({ target: { value: "Equipment" } }),
+);
+await act(async () =>
+  renderer.root
+    .findAllByType("input")
+    .find((node) => node.props.placeholder === "Amount")
+    .props.onChange({ target: { value: "1,000" } }),
+);
+await act(async () => button(renderer, "Add expense").props.onClick());
+assert.ok(
+  text(renderer.root).includes("1,250"),
+  "expense calculations should normalize comma-formatted amounts",
+);
 assert.equal(
   JSON.parse(store.get("launch7-records-1")).expenses[0].amount,
-  "150",
+  "250",
   "Finance expense records should be editable",
 );
 assert.ok(
   text(renderer.root).includes("Registered spend") &&
-    text(renderer.root).includes("150"),
+    text(renderer.root).includes("1,250"),
   "Finance should show calculated registered spend",
 );
 const ownershipDocName = renderer.root
@@ -420,11 +437,11 @@ await act(async () =>
   renderer.root
     .findAllByType("input")
     .find((node) => node.props.placeholder === "e.g. 50000")
-    .props.onChange({ target: { value: "1,000" } }),
+    .props.onChange({ target: { value: "2,000" } }),
 );
 assert.equal(
   JSON.parse(store.get("launch7-draft-1-finance-0")).budgetAmount,
-  "1000",
+  "2000",
   "comma-formatted Finance budgets should normalize instead of becoming zero",
 );
 await act(async () => button(renderer, "Funding").props.onClick());
@@ -676,6 +693,29 @@ assert.equal(
   JSON.parse(store.get("launch7-records-1")).decisions[0].evidence,
   "Launch memo",
   "Launch decisions should persist evidence references",
+);
+await act(async () =>
+  renderer.root
+    .findAllByType("button")
+    .find((node) => node.props["aria-label"]?.startsWith("Edit decisions"))
+    .props.onClick(),
+);
+await act(async () =>
+  renderer.root
+    .findAllByType("input")
+    .find((node) => node.props.placeholder === "Decision scope")
+    .props.onChange({ target: { value: "Beta launch v2" } }),
+);
+await act(async () => button(renderer, "Update decision").props.onClick());
+assert.equal(
+  JSON.parse(store.get("launch7-records-1")).decisions[0].version,
+  2,
+  "Launch decisions should create a new version on edit",
+);
+assert.equal(
+  JSON.parse(store.get("launch7-records-1")).decisions[0].history.length,
+  1,
+  "Launch decisions should retain the prior snapshot",
 );
 await act(async () =>
   renderer.root
