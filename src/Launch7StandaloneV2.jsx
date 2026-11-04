@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import {
   ArrowLeft,
   ArrowRight,
@@ -111,11 +111,10 @@ const productTasks = (existing = []) => {
     const saved = existing[i];
     if (!saved) return fallback;
     const legacyTitle = legacyProductTaskTitles.includes(saved.title);
-    const legacyChecklist =
-      saved.checklist &&
-      JSON.stringify(saved.checklist) !== JSON.stringify(productChecklist)
-        ? null
-        : saved.checklist;
+    const legacyChecklist = saved.checklist;
+    const legacyChecklistIsGeneric =
+      !saved.checklist ||
+      JSON.stringify(saved.checklist) === JSON.stringify(productChecklist);
     return {
       ...fallback,
       ...saved,
@@ -124,13 +123,16 @@ const productTasks = (existing = []) => {
         saved.title && !legacyTitle
           ? saved.title
           : fallback.title,
-      checklist: legacyTitle ? fallback.checklist : saved.checklist || fallback.checklist,
+      checklist:
+        legacyTitle && legacyChecklistIsGeneric
+          ? fallback.checklist
+          : saved.checklist || fallback.checklist,
       status: legacyTitle ? "Needs review" : saved.status || fallback.status,
       note: saved.note ?? fallback.note,
       ...(legacyTitle
         ? {
             legacyTitle: saved.title,
-            legacyChecklist,
+            legacyChecklist: legacyChecklist || null,
             legacyChecklistState: saved.checklistState,
             migrationReviewRequired: true,
             evidenceReview: "Missing",
@@ -420,34 +422,45 @@ export default function Launch7StandaloneV2() {
             ...x,
             tasks: {
               ...x.tasks,
-              [key]: x.tasks[key].map((t) =>
-                t.id === id
-                  ? {
-                      ...t,
-                      ...patch,
-                      ...(patch.evidenceReference !== undefined &&
-                      patch.evidenceReference !== t.evidenceReference
-                        ? { evidenceReview: "Missing" }
-                        : {}),
-                      ...(patch.assigneeName !== undefined
-                        ? {
-                            note: (() => {
-                              try {
-                                return JSON.stringify({
-                                  ...JSON.parse(t.note || "{}"),
-                                  assigneeName: patch.assigneeName,
-                                });
-                              } catch {
-                                return JSON.stringify({
-                                  assigneeName: patch.assigneeName,
-                                });
-                              }
-                            })(),
+              [key]: x.tasks[key].map((t) => {
+                if (t.id !== id) return t;
+                const merged = {
+                  ...t,
+                  ...patch,
+                  ...(patch.evidenceReference !== undefined &&
+                  patch.evidenceReference !== t.evidenceReference
+                    ? { evidenceReview: "Missing" }
+                    : {}),
+                  ...(patch.assigneeName !== undefined
+                    ? {
+                        note: (() => {
+                          try {
+                            return JSON.stringify({
+                              ...JSON.parse(t.note || "{}"),
+                              assigneeName: patch.assigneeName,
+                            });
+                          } catch {
+                            return JSON.stringify({
+                              assigneeName: patch.assigneeName,
+                            });
                           }
-                        : {}),
+                        })(),
+                      }
+                    : {}),
+                };
+                const reReviewed =
+                  key === "product" &&
+                  t.migrationReviewRequired &&
+                  merged.evidenceReview === "Founder reviewed" &&
+                  productTaskMissing(merged).length === 0;
+                return reReviewed
+                  ? {
+                      ...merged,
+                      migrationReviewRequired: false,
+                      reReviewedAt: new Date().toISOString(),
                     }
-                  : t,
-              ),
+                  : merged;
+              }),
             },
           }
         : x,
@@ -1214,7 +1227,143 @@ function Wizard({ v, k, tasks, onTask }) {
     </div>
   );
 }
+function BrandBuildModal({ data, onSave, onClose }) {
+  const [tab, setTab] = useState(data.method || "ai");
+  const [draft, setDraft] = useState({ ...data });
+  const [error, setError] = useState("");
+  const headingRef = useRef(null);
+  useEffect(() => {
+    headingRef.current?.focus();
+    const closeOnEscape = (event) => {
+      if (event.key === "Escape") onClose();
+    };
+    if (window.addEventListener) {
+      window.addEventListener("keydown", closeOnEscape);
+      return () => window.removeEventListener("keydown", closeOnEscape);
+    }
+    return undefined;
+  }, [onClose]);
+  const set = (key, value) => {
+    setDraft((current) => ({
+      ...current,
+      [key]: value,
+      ...(key === "aiBrief" ? { aiStatus: "", aiOutput: "" } : {}),
+    }));
+    setError("");
+  };
+  const save = () => {
+    if (tab === "ai" && !draft.aiBrief?.trim()) {
+      setError("Add a creative brief before saving the AI route.");
+      return;
+    }
+    if (
+      tab === "person" &&
+      (!draft.assigneeName?.trim() ||
+        !draft.instructions?.trim() ||
+        !draft.dueDate?.trim())
+    ) {
+      setError("Add an assignee, deadline and assignment brief.");
+      return;
+    }
+    if (tab === "manual" && !draft.file) {
+      setError("Attach a local evidence file before saving the manual route.");
+      return;
+    }
+    onSave({ ...draft, method: tab });
+  };
+  return (
+    <div className="modal-backdrop" role="presentation" onMouseDown={(event) => {
+      if (event.target === event.currentTarget) onClose();
+    }}>
+      <section
+        className="build-modal"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="brand-build-title"
+      >
+        <div className="build-modal-header">
+          <div>
+            <span className="chip">BRAND BUILD · LOCAL DEMO</span>
+            <h2 id="brand-build-title" ref={headingRef} tabIndex={-1}>
+              Build brand evidence
+            </h2>
+            <p>Choose a route, complete its requirements and save a reviewable local preview.</p>
+          </div>
+          <button type="button" className="icon-button" aria-label="Close Build modal" onClick={onClose}>
+            ×
+          </button>
+        </div>
+        <div className="build-tabs" role="tablist" aria-label="Brand build route">
+          {["ai", "person", "manual"].map((id) => (
+            <button
+              type="button"
+              role="tab"
+              aria-selected={tab === id}
+              className={tab === id ? "active" : ""}
+              key={id}
+              onClick={() => setTab(id)}
+            >
+              {id === "ai" ? "AI draft" : id === "person" ? "Assign person" : "Manual evidence"}
+            </button>
+          ))}
+        </div>
+        <div className="build-modal-body">
+          {tab === "ai" && (
+            <>
+              <Field label="Creative brief">
+                <textarea
+                  autoFocus
+                  value={draft.aiBrief || ""}
+                  onChange={(event) => set("aiBrief", event.target.value)}
+                  placeholder="Describe the logo, tone, audience and brand feeling."
+                />
+              </Field>
+              <button
+                type="button"
+                className="secondary"
+                disabled={!draft.aiBrief?.trim()}
+                onClick={() =>
+                  setDraft((current) => ({
+                    ...current,
+                    aiStatus: "Generated demo draft ready for review",
+                    aiOutput: "Brand kit draft prepared from the local brief.",
+                  }))
+                }
+              >
+                Generate demo draft
+              </button>
+              {draft.aiOutput && (
+                <div className="evidence-preview">
+                  <Rocket size={17} />
+                  <span><b>{draft.aiStatus}</b><small>{draft.aiOutput}</small></span>
+                </div>
+              )}
+            </>
+          )}
+          {tab === "person" && (
+            <div className="two-col">
+              <Field label="Assignee name"><input value={draft.assigneeName || ""} onChange={(event) => set("assigneeName", event.target.value)} placeholder="Name" /></Field>
+              <Field label="Deadline"><input type="date" value={draft.dueDate || ""} onChange={(event) => set("dueDate", event.target.value)} /></Field>
+              <Field label="Assignment brief"><textarea value={draft.instructions || ""} onChange={(event) => set("instructions", event.target.value)} placeholder="What should be delivered?" /></Field>
+              <label className="upload-row"><FileText size={16} /><span><b>{draft.deliverableFile || "Attach deliverable"}</b><small>Browser-local preview only; no upload performed.</small></span><input type="file" onChange={(event) => { const file = event.target.files?.[0]; if (file) setDraft((current) => ({ ...current, deliverableFile: file.name, deliverableType: file.type, deliverableSize: file.size })); }} /></label>
+              <label className="review-check"><input type="checkbox" checked={Boolean(draft.founderReviewed)} onChange={(event) => set("founderReviewed", event.target.checked)} /> Founder reviewed this demo deliverable</label>
+            </div>
+          )}
+          {tab === "manual" && (
+            <label className="upload-row build-upload"><FileText size={17} /><span><b>{draft.file || "Attach brand evidence"}</b><small>{draft.file ? `${draft.fileType || "File"} · ${draft.fileSize || 0} bytes · local preview` : "Filename and metadata only; nothing is uploaded."}</small></span><input type="file" onChange={(event) => { const file = event.target.files?.[0]; if (file) setDraft((current) => ({ ...current, file: file.name, fileType: file.type, fileSize: file.size, fileStored: false })); }} /></label>
+          )}
+          {error && <p className="field-error" role="alert">{error}</p>}
+        </div>
+        <div className="build-modal-footer">
+          <button type="button" className="secondary" onClick={onClose}>Cancel</button>
+          <button type="button" className="primary" onClick={save}>Save brand build</button>
+        </div>
+      </section>
+    </div>
+  );
+}
 function DomainControls({ k, ventureId, data, update, updateMany }) {
+  const [brandModalOpen, setBrandModalOpen] = useState(false);
   if (
     ["finance", "legal", "people", "apps", "partners", "launch"].includes(k)
   ) {
@@ -1230,6 +1379,55 @@ function DomainControls({ k, ventureId, data, update, updateMany }) {
   if (k !== "brand" && k !== "product") return null;
   const brand = k === "brand";
   const method = data.method || "ai";
+  if (brand && false) {
+    return (
+      <>
+        <section
+          className="domain-controls"
+          aria-label={`${WS[k][0]} demo actions`}
+        >
+          <div className="domain-controls-heading">
+            <div>
+              <span className="chip">FRONTEND DEMO</span>
+              <h3>Brand build workspace</h3>
+              <p>
+                Open the guided Build modal to draft, assign or attach brand
+                evidence. AI, email and storage remain simulated locally.
+              </p>
+            </div>
+            <button
+              type="button"
+              className="primary"
+              onClick={() => setBrandModalOpen(true)}
+            >
+              Open Build modal
+            </button>
+          </div>
+          <div className="evidence-preview">
+            <FileText size={17} />
+            <span>
+              <b>{data.file || data.deliverableFile || "No brand evidence saved"}</b>
+              <small>
+                {data.founderReviewed
+                  ? "Founder reviewed local demo evidence."
+                  : "Use the modal to save a local evidence preview and review state."}
+              </small>
+            </span>
+          </div>
+        </section>
+        {brandModalOpen && (
+          <BrandBuildModal
+            data={data}
+            onSave={(next) => {
+              updateMany(next);
+              setBrandModalOpen(false);
+            }}
+            onClose={() => setBrandModalOpen(false)}
+          />
+        )}
+      </>
+    );
+  }
   return (
     <section
       className="domain-controls"
@@ -1248,6 +1446,15 @@ function DomainControls({ k, ventureId, data, update, updateMany }) {
             until backend adapters are connected.
           </p>
         </div>
+        {brand && (
+          <button
+            type="button"
+            className="primary"
+            onClick={() => setBrandModalOpen(true)}
+          >
+            Open Build modal
+          </button>
+        )}
       </div>
       <div
         className="domain-methods"
@@ -1425,6 +1632,16 @@ function DomainControls({ k, ventureId, data, update, updateMany }) {
             <small>Local filename preview only; no file is uploaded.</small>
           </span>
         </div>
+      )}
+      {brandModalOpen && (
+        <BrandBuildModal
+          data={data}
+          onSave={(next) => {
+            updateMany(next);
+            setBrandModalOpen(false);
+          }}
+          onClose={() => setBrandModalOpen(false)}
+        />
       )}
     </section>
   );

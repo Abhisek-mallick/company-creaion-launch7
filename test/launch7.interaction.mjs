@@ -7,6 +7,7 @@ import { pathToFileURL } from "node:url";
 import React from "react";
 
 const store = new Map();
+const windowListeners = new Map();
 global.localStorage = {
   getItem: (key) => store.get(key) ?? null,
   setItem: (key, value) => store.set(key, String(value)),
@@ -17,6 +18,9 @@ global.window = {
   alert() {},
   reload() {},
   setTimeout,
+  addEventListener: (type, listener) => windowListeners.set(type, listener),
+  removeEventListener: (type) => windowListeners.delete(type),
+  dispatchEvent: (event) => windowListeners.get(event.type)?.(event),
 };
 const testBundle = join(process.cwd(), "test", ".launch7-interaction-test.mjs");
 await build({
@@ -102,10 +106,36 @@ await act(async () => button(renderer, "Ventures").props.onClick());
 await act(async () => button(renderer, "Open launch plan").props.onClick());
 await act(async () => button(renderer, "Brand & collateral").props.onClick());
 assert.ok(
-  button(renderer, "Upload manually"),
-  "Brand should expose manual evidence action",
+  button(renderer, "Open Build modal"),
+  "Brand should expose the guided Build modal",
 );
-await act(async () => button(renderer, "Upload manually").props.onClick());
+await act(async () => button(renderer, "Open Build modal").props.onClick());
+assert.ok(
+  renderer.root.findAll(
+    (node) => node.type === "section" && node.props.role === "dialog",
+  ).length,
+  "Brand Build modal should open as an accessible dialog",
+);
+assert.ok(
+  renderer.root.findAll(
+    (node) => node.type === "button" && node.props.role === "tab",
+  ).length === 3,
+  "Brand Build modal should expose keyboard-friendly route tabs",
+);
+await act(async () => button(renderer, "Assign person").props.onClick());
+await act(async () => button(renderer, "Save brand build").props.onClick());
+assert.ok(
+  renderer.root.findAll((node) => node.props.role === "alert").length,
+  "Brand Build modal should validate required assignment fields",
+);
+window.dispatchEvent({ type: "keydown", key: "Escape" });
+assert.equal(
+  renderer.root.findAll((node) => node.props.role === "dialog").length,
+  0,
+  "Escape should close the Brand Build modal",
+);
+await act(async () => button(renderer, "Open Build modal").props.onClick());
+await act(async () => button(renderer, "Manual evidence").props.onClick());
 const evidenceInput = renderer.root
   .findAllByType("input")
   .find((node) => node.props.type === "file");
@@ -116,6 +146,7 @@ await act(async () =>
     },
   }),
 );
+await act(async () => button(renderer, "Save brand build").props.onClick());
 assert.ok(
   renderer.root.findAll(
     (node) => node.type === "b" && text(node).includes("brand-kit.pdf"),
@@ -129,6 +160,18 @@ assert.ok(
       text(node).includes("browser-local preview only"),
   ).length,
   "Brand manual mode should show local evidence preview",
+);
+await act(async () => button(renderer, "Open Build modal").props.onClick());
+await act(async () =>
+  renderer.root
+    .findAllByType("button")
+    .find((node) => node.props["aria-label"] === "Close Build modal")
+    .props.onClick(),
+);
+assert.equal(
+  renderer.root.findAll((node) => node.props.role === "dialog").length,
+  0,
+  "Brand Build modal should close cleanly",
 );
 await act(async () => button(renderer, "Product & technology").props.onClick());
 await act(async () => button(renderer, "Draft with AI").props.onClick());
@@ -1335,18 +1378,23 @@ await act(async () => {
 });
 await act(async () => button(renderer, "Open launch plan").props.onClick());
 await act(async () => button(renderer, "Brand & collateral").props.onClick());
-await act(async () => button(renderer, "Draft with AI").props.onClick());
+await act(async () => button(renderer, "Open Build modal").props.onClick());
+await act(async () => button(renderer, "AI draft").props.onClick());
 await act(async () =>
   renderer.root.findAllByType("textarea")[0].props.onChange({
     target: { value: "AI brand brief" },
   }),
 );
 await act(async () => button(renderer, "Generate demo draft").props.onClick());
+await act(async () => button(renderer, "Save brand build").props.onClick());
+await act(async () => button(renderer, "Open Build modal").props.onClick());
+await act(async () => button(renderer, "AI draft").props.onClick());
 await act(async () =>
   renderer.root.findAllByType("textarea")[0].props.onChange({
     target: { value: "Changed AI brand brief" },
   }),
 );
+await act(async () => button(renderer, "Save brand build").props.onClick());
 await act(async () => button(renderer, "Review launch").props.onClick());
 assert.ok(
   text(renderer.root).includes("Complete every workstream first"),
@@ -1652,6 +1700,9 @@ const legacyRows = JSON.parse(store.get("launch7-v2")).map((venture) => ({
         "Validate release readiness",
         "Approve release outcome",
         ][index],
+        ...(index === 1
+          ? { checklist: ["Regulator sign-off"], checklistState: [true] }
+          : {}),
       })),
       {
         id: "custom-product-17",
@@ -1734,12 +1785,64 @@ assert.equal(
 );
 assert.deepEqual(
   migrated[1].checklist,
-  ["Audience named", "Problem statement recorded"],
-  "Product migration should apply the matching stage checklist",
+  ["Regulator sign-off"],
+  "custom Product checklists should be preserved exactly",
 );
 assert.ok(
   text(renderer.root).includes("Founder custom product task") &&
     text(renderer.root).includes("Define the target audience and problem"),
   "migrated Product inventory should be visible in the UI",
+);
+await act(async () => button(renderer, "Assigned tasks").props.onClick());
+const migratedTaskOwner = renderer.root
+  .findAllByType("input")
+  .find(
+    (node) =>
+      node.props["aria-label"] ===
+      "Define the target audience and problem owner",
+  );
+await act(async () =>
+  migratedTaskOwner.props.onChange({ target: { value: "Reviewer" } }),
+);
+const migratedTaskReference = renderer.root
+  .findAllByType("input")
+  .find(
+    (node) =>
+      node.props["aria-label"] ===
+      "Define the target audience and problem evidence reference",
+  );
+await act(async () =>
+  migratedTaskReference.props.onChange({ target: { value: "REVIEWED-2" } }),
+);
+const migratedTaskEvidence = renderer.root
+  .findAllByType("select")
+  .find(
+    (node) =>
+      node.props["aria-label"] ===
+      "Define the target audience and problem evidence review",
+  );
+await act(async () =>
+  migratedTaskEvidence.props.onChange({ target: { value: "Founder reviewed" } }),
+);
+const productChecklistButtons = renderer.root
+  .findAllByType("button")
+  .filter((node) => text(node) === "Show checklist");
+await act(async () => productChecklistButtons[1].props.onClick());
+const migratedChecklist = renderer.root
+  .findAllByType("input")
+  .find((node) => node.props.type === "checkbox");
+await act(async () =>
+  migratedChecklist.props.onChange({ target: { checked: true } }),
+);
+const productCheckButtons = renderer.root.findAll(
+  (node) =>
+    node.type === "button" && node.props.className?.includes("check-button"),
+);
+await act(async () => productCheckButtons[6].props.onClick());
+assert.equal(
+  JSON.parse(store.get("launch7-v2"))[0].tasks.product[1]
+    .migrationReviewRequired,
+  false,
+  "actual Product re-review should clear the migration review gate",
 );
 console.log("Launch7 component interaction tests passed");
